@@ -8,7 +8,7 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     min-height: 100vh;
-    padding: 20px;
+    padding: 10px;
     color: #333;
 }
 
@@ -35,7 +35,7 @@ header h1 {
 
 .section {
     background: white;
-    padding: 25px;
+    padding: 15px;
     border-radius: 10px;
     margin-bottom: 20px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -223,6 +223,7 @@ header h1 {
 /* Leaderboard */
 .leaderboard {
     margin-bottom: 30px;
+    overflow-x: auto;
 }
 
 .leaderboard h3 {
@@ -234,6 +235,7 @@ header h1 {
     width: 100%;
     border-collapse: collapse;
     margin-top: 10px;
+    min-width: 600px;
 }
 
 #leaderboardTable th {
@@ -384,18 +386,71 @@ header h1 {
     justify-content: flex-end;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+/* Rbody {
+        padding: 5px;
+    }
+
     header {
         flex-direction: column;
         gap: 15px;
+        padding: 15px;
+    }
+
+    header h1 {
+        font-size: 1.5em;
+    }
+
+    .section {
+        padding: 10px;
+    }
+
+    .check-in-form {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        padding: 12px 15px;
+    }
+
+    #playerNameInput {
+        width: 100%;
     }
 
     .tournament-info {
         flex-direction: column;
         gap: 10px;
+        font-size: 14px;
     }
 
+    .header-buttons {
+        flex-direction: column;
+    }
+
+    .player-buttons {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+
+    .player-list {
+        grid-template-columns: 1fr;
+    }
+
+    #leaderboardTable {
+        font-size: 14px;
+    }
+
+    #leaderboardTable th,
+    #leaderboardTable td {
+        padding: 8px 4px;
+    }
+
+    .modal-content {
+        padding: 20px;
+        width: 95%;
+    }
+
+    .modal-actions {
+        flex-direction: column
     .player-buttons {
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     }
