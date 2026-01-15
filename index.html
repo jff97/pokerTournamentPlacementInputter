@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Tournament Scorer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🃏 Poker Tournament Scorer</h1>
+            <div class="header-actions">
+                <button id="clearAllBtn" class="btn btn-danger">Clear All Data</button>
+            </div>
+        </header>
+
+        <!-- Check-in Section -->
+        <section id="checkInSection" class="section">
+            <h2>Player Check-In</h2>
+            <div class="check-in-form">
+                <input type="text" id="playerNameInput" placeholder="Enter player name" />
+                <button id="addPlayerBtn" class="btn btn-primary">Add Player</button>
+            </div>
+            <div id="checkedInPlayers" class="player-list"></div>
+            <div class="player-count">
+                <strong>Total Players: <span id="playerCount">0</span></strong>
+            </div>
+            <div id="tournamentButtons">
+                <button id="startTournamentBtn" class="btn btn-success" style="display: none;">Start Tournament</button>
+                <button id="resumeTournamentBtn" class="btn btn-success" style="display: none;">Resume Tournament</button>
+            </div>
+        </section>
+
+        <!-- Tournament Section -->
+        <section id="tournamentSection" class="section" style="display: none;">
+            <div id="validationWarning" class="validation-warning" style="display: none;"></div>
+            <div class="tournament-header">
+                <h2>Tournament in Progress</h2>
+                <div class="tournament-info">
+                    <span>Total Players: <strong id="totalPlayers">0</strong></span>
+                    <span>Next Elimination: <strong id="nextElimination">1</strong></span>
+                    <span>Players Remaining: <strong id="playersRemaining">0</strong></span>
+                </div>
+                <div class="header-buttons">
+                    <button id="addMissingPlayerBtn" class="btn btn-warning" style="display: none;">Add Missed Player</button>
+                    <button id="backToCheckInBtn" class="btn btn-secondary">Back to Check-In</button>
+                </div>
+            </div>
+
+            <!-- Leaderboard -->
+            <div class="leaderboard">
+                <h3>Current Standings</h3>
+                <table id="leaderboardTable">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Points</th>
+                            <th>Bonus Points</th>
+                            <th>Total Points</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Active Players -->
+            <div class="active-players">
+                <h3>Click to Eliminate Player</h3>
+                <div id="activePlayersList" class="player-buttons"></div>
+            </div>
+        </section>
+
+        <!-- Edit Modal -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <h3>Edit Player Score</h3>
+                <div class="modal-body">
+                    <p><strong>Player:</strong> <span id="editPlayerName"></span></p>
+                    <div class="form-group">
+                        <label for="editEliminationOrder">What place did they go out?</label>
+                        <input type="number" id="editEliminationOrder" min="1" />
+                        <p style="margin-top: 10px; color: #666; font-size: 14px;">This is their points (1st out = 1 point, 2nd out = 2 points, etc). Bonus points calculated automatically.</p>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="saveEditBtn" class="btn btn-primary">Save</button>
+                    <button id="cancelEditBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="removeScoreBtn" class="btn btn-danger">Remove Score</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Missing Player Modal -->
+        <div id="eliminateModal" class="modal">
+            <div class="modal-content">
+                <h3>Add Missed Player</h3>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="selectMissingPlayer">Select Player:</label>
+                        <select id="selectMissingPlayer" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 16px;">
+                            <option value="">-- Choose Player --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="eliminatePosition">What place did they go out?</label>
+                        <input type="number" id="eliminatePosition" min="1" />
+                        <p style="margin-top: 10px; color: #666; font-size: 14px;">This is their points (1st out = 1 point, 2nd out = 2 points, etc). Other players will be bumped up.</p>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="confirmEliminateBtn" class="btn btn-primary">Add Player</button>
+                    <button id="cancelEliminateBtn" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
