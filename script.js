@@ -95,6 +95,9 @@ class TournamentScorer {
         // Clear all
         document.getElementById('clearAllBtn').addEventListener('click', () => this.clearAll());
         
+        // Export results
+        document.getElementById('exportResultsBtn').addEventListener('click', () => this.exportResults());
+        
         // Edit Modal
         document.getElementById('saveEditBtn').addEventListener('click', () => this.saveEdit());
         document.getElementById('cancelEditBtn').addEventListener('click', () => this.closeEditModal());
@@ -434,6 +437,46 @@ class TournamentScorer {
 
     // === Storage & Reset ===
 
+    exportResults() {
+        const eliminated = this.getEliminatedPlayers();
+        if (eliminated.length === 0) {
+            alert('No results to export yet');
+            return;
+        }
+
+        // Get the leaderboard element
+        const leaderboard = document.querySelector('.leaderboard');
+        
+        // Temporarily hide the export button for the screenshot
+        const exportBtn = document.getElementById('exportResultsBtn');
+        const originalDisplay = exportBtn.style.display;
+        exportBtn.style.display = 'none';
+        
+        // Use html2canvas to capture the leaderboard
+        html2canvas(leaderboard, {
+            backgroundColor: '#ffffff',
+            scale: 2 // Higher quality
+        }).then(canvas => {
+            // Restore button
+            exportBtn.style.display = originalDisplay;
+            
+            // Convert canvas to blob and download
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const date = new Date().toISOString().split('T')[0];
+                link.download = `tournament-results-${date}.png`;
+                link.href = url;
+                link.click();
+                URL.revokeObjectURL(url);
+            });
+        }).catch(err => {
+            exportBtn.style.display = originalDisplay;
+            alert('Error generating image. Please take a screenshot manually.');
+            console.error(err);
+        });
+    }
+
     clearAll() {
         if (!confirm('This will clear ALL data including players and scores. Are you sure?')) {
             return;
@@ -507,10 +550,13 @@ class TournamentScorer {
             
             // Calculate bonus chips
             const bonusChips = (player.bonusActions[0] ? 2.5 : 0) + (player.bonusActions[1] ? 2.5 : 0);
-            const bonusDisplay = bonusChips > 0 ? ` (+${bonusChips}k)` : '';
+            const bonusDisplay = bonusChips > 0 ? `<div class="bonus-display">+${bonusChips}k</div>` : '<div class="bonus-display">&nbsp;</div>';
             
             chip.innerHTML = `
-                <span class="name">${player.name}${indicator}${bonusDisplay}</span>
+                <div class="name-container">
+                    <span class="name">${player.name}${indicator}</span>
+                    ${bonusDisplay}
+                </div>
                 <div class="bonus-actions">
                     <button class="bonus-btn ${player.bonusActions[0] ? 'active' : ''}" 
                             onclick="scorer.toggleBonusAction('${player.name}', 0)"
@@ -581,6 +627,14 @@ class TournamentScorer {
             const total = player.eliminationPoints + player.bonusPoints;
             const tournamentRank = this.totalPlayers - player.eliminationOrder + 1;
             
+            // Format points display
+            let pointsDisplay;
+            if (player.bonusPoints > 0) {
+                pointsDisplay = `<strong>${total}</strong> = ${player.eliminationPoints} + ${player.bonusPoints}`;
+            } else {
+                pointsDisplay = `<strong>${player.eliminationPoints}</strong>`;
+            }
+            
             // Add styling for top 3 ranks
             if (index === 0) row.classList.add('first-place');
             else if (index === 1) row.classList.add('second-place');
@@ -589,9 +643,7 @@ class TournamentScorer {
             row.innerHTML = `
                 <td>${tournamentRank}</td>
                 <td><strong>${player.name}</strong></td>
-                <td>${player.eliminationPoints}</td>
-                <td>${player.bonusPoints > 0 ? player.bonusPoints : '-'}</td>
-                <td><strong>${total}</strong></td>
+                <td>${pointsDisplay}</td>
                 <td><button class="edit-btn" onclick="scorer.openEditModal('${player.name}')">Edit</button></td>
             `;
             tbody.appendChild(row);

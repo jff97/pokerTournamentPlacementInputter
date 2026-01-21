@@ -50,15 +50,16 @@
 
             <!-- Leaderboard -->
             <div class="leaderboard">
-                <h3>Current Standings</h3>
+                <div class="leaderboard-header">
+                    <h3>Current Standings</h3>
+                    <button id="exportResultsBtn" class="btn btn-secondary">Export Results</button>
+                </div>
                 <table id="leaderboardTable">
                     <thead>
                         <tr>
                             <th>Rank</th>
                             <th>Player</th>
                             <th>Points</th>
-                            <th>Bonus Points</th>
-                            <th>Total Points</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -118,6 +119,7 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
