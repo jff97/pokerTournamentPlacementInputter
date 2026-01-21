@@ -150,6 +150,42 @@ header h1 {
 
 .player-chip .name {
     font-weight: 600;
+    flex: 1;
+}
+
+.player-chip .bonus-actions {
+    display: flex;
+    gap: 5px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.player-chip .bonus-btn {
+    background: white;
+    color: #999;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+    line-height: 1;
+}
+
+.player-chip .bonus-btn:hover {
+    border-color: #2a5298;
+    transform: scale(1.1);
+}
+
+.player-chip .bonus-btn.active {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
 }
 
 .player-chip .remove-btn {

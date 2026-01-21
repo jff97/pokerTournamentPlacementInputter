@@ -126,7 +126,8 @@ class TournamentScorer {
             eliminationPoints: 0,
             bonusPoints: 0,
             eliminated: false,
-            eliminationOrder: null
+            eliminationOrder: null,
+            bonusActions: [false, false] // Track 2 bonus actions (2.5k each)
         });
 
         // If tournament is active, increment totalPlayers and recalculate bonus points
@@ -137,6 +138,20 @@ class TournamentScorer {
         }
 
         input.value = '';
+        this.saveToStorage();
+        this.render();
+    }
+
+    toggleBonusAction(name, actionIndex) {
+        const player = this.players.find(p => p.name === name);
+        if (!player) return;
+        
+        // Initialize bonusActions if it doesn't exist (for existing data)
+        if (!player.bonusActions) {
+            player.bonusActions = [false, false];
+        }
+        
+        player.bonusActions[actionIndex] = !player.bonusActions[actionIndex];
         this.saveToStorage();
         this.render();
     }
@@ -482,11 +497,28 @@ class TournamentScorer {
             const chip = document.createElement('div');
             chip.className = 'player-chip';
             
+            // Initialize bonusActions if it doesn't exist (for existing data)
+            if (!player.bonusActions) {
+                player.bonusActions = [false, false];
+            }
+            
             // Show indicator if player has been eliminated
             const indicator = player.eliminated ? ' ✓' : '';
             
+            // Calculate bonus chips
+            const bonusChips = (player.bonusActions[0] ? 2.5 : 0) + (player.bonusActions[1] ? 2.5 : 0);
+            const bonusDisplay = bonusChips > 0 ? ` (+${bonusChips}k)` : '';
+            
             chip.innerHTML = `
-                <span class="name">${player.name}${indicator}</span>
+                <span class="name">${player.name}${indicator}${bonusDisplay}</span>
+                <div class="bonus-actions">
+                    <button class="bonus-btn ${player.bonusActions[0] ? 'active' : ''}" 
+                            onclick="scorer.toggleBonusAction('${player.name}', 0)"
+                            title="Bonus Action 1 (2.5k)">◻</button>
+                    <button class="bonus-btn ${player.bonusActions[1] ? 'active' : ''}" 
+                            onclick="scorer.toggleBonusAction('${player.name}', 1)"
+                            title="Bonus Action 2 (2.5k)">◻</button>
+                </div>
                 <button class="remove-btn" onclick="scorer.removePlayer('${player.name}')">×</button>
             `;
             playerListDiv.appendChild(chip);
