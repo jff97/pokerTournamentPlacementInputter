@@ -351,10 +351,6 @@ class TournamentScorer {
     removeScore() {
         if (!this.editingPlayer) return;
 
-        if (!confirm(`Remove score for ${this.editingPlayer.name}? This will allow them to be eliminated again.`)) {
-            return;
-        }
-
         const removedPosition = this.editingPlayer.eliminationOrder;
 
         // Shift all players after this position down by one
@@ -551,6 +547,7 @@ class TournamentScorer {
         sorted.forEach((player, index) => {
             const row = document.createElement('tr');
             const total = player.eliminationPoints + player.bonusPoints;
+            const tournamentRank = this.totalPlayers - player.eliminationOrder + 1;
             
             // Add styling for top 3 ranks
             if (index === 0) row.classList.add('first-place');
@@ -558,7 +555,7 @@ class TournamentScorer {
             else if (index === 2) row.classList.add('third-place');
 
             row.innerHTML = `
-                <td>${index + 1}</td>
+                <td>${tournamentRank}</td>
                 <td><strong>${player.name}</strong></td>
                 <td>${player.eliminationPoints}</td>
                 <td>${player.bonusPoints > 0 ? player.bonusPoints : '-'}</td>
