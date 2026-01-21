@@ -608,6 +608,16 @@ class TournamentScorer {
     renderLeaderboard() {
         const tbody = document.getElementById('leaderboardBody');
         const eliminated = this.getEliminatedPlayers();
+        const exportBtn = document.getElementById('exportResultsBtn');
+
+        // Show export button only if all players are eliminated
+        if (eliminated.length === this.totalPlayers && this.totalPlayers > 0) {
+            exportBtn.style.display = 'block';
+            exportBtn.classList.add('tournament-complete');
+        } else {
+            exportBtn.style.display = 'none';
+            exportBtn.classList.remove('tournament-complete');
+        }
 
         if (eliminated.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">No players eliminated yet</td></tr>';
