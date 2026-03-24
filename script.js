@@ -169,12 +169,16 @@ class TournamentScorer {
             return;
         }
 
+        // Simple confirmation (consistent with clearAll() and other destructive actions)
+        if (!confirm(`Remove ${name} from check-in?\n\nThis cannot be undone.`)) {
+            return;
+        }
+
         this.players = this.players.filter(p => p.name !== name);
         
         // If tournament is active, adjust totalPlayers and recalculate bonus points
         if (this.totalPlayers > 0) {
             this.totalPlayers--;
-            // Recalculate bonus points for all eliminated players with new totalPlayers count
             this.recalculateAllBonusPoints();
         }
         
@@ -437,30 +441,41 @@ class TournamentScorer {
 
     // === Storage & Reset ===
 
-    exportResults() {
+        exportResults() {
         const eliminated = this.getEliminatedPlayers();
         if (eliminated.length === 0) {
             alert('No results to export yet');
             return;
         }
 
-        // Get the leaderboard element
         const leaderboard = document.querySelector('.leaderboard');
-        
-        // Temporarily hide the export button for the screenshot
+        if (!leaderboard) {
+            alert('Leaderboard element not found');
+            return;
+        }
+
+        // Temporarily hide the export button so it doesn't appear in the image
         const exportBtn = document.getElementById('exportResultsBtn');
         const originalDisplay = exportBtn.style.display;
         exportBtn.style.display = 'none';
-        
-        // Use html2canvas to capture the leaderboard
+
+        // Improved html2canvas options for full capture
         html2canvas(leaderboard, {
             backgroundColor: '#ffffff',
-            scale: 2 // Higher quality
+            scale: 2,                    // High resolution
+            useCORS: true,
+            allowTaint: true,
+            scrollX: 0,
+            scrollY: 0,
+            width: leaderboard.scrollWidth,   // Full width including any horizontal scroll
+            height: leaderboard.scrollHeight, // Full height including any vertical scroll
+            x: 0,
+            y: 0
         }).then(canvas => {
-            // Restore button
+            // Restore the button
             exportBtn.style.display = originalDisplay;
-            
-            // Convert canvas to blob and download
+
+            // Download as PNG
             canvas.toBlob(blob => {
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -471,9 +486,10 @@ class TournamentScorer {
                 URL.revokeObjectURL(url);
             });
         }).catch(err => {
+            // Restore button even if it fails
             exportBtn.style.display = originalDisplay;
             alert('Error generating image. Please take a screenshot manually.');
-            console.error(err);
+            console.error('html2canvas error:', err);
         });
     }
 
@@ -610,8 +626,10 @@ class TournamentScorer {
         const eliminated = this.getEliminatedPlayers();
         const exportBtn = document.getElementById('exportResultsBtn');
 
-        // Show export button only if all players are eliminated
-        if (eliminated.length === this.totalPlayers && this.totalPlayers > 0) {
+        // Show export button only when tournament is 100% complete
+        const isComplete = (eliminated.length === this.totalPlayers && this.totalPlayers > 0);
+        
+        if (isComplete) {
             exportBtn.style.display = 'block';
             exportBtn.classList.add('tournament-complete');
         } else {
@@ -624,7 +642,7 @@ class TournamentScorer {
             return;
         }
 
-        // Sort by total points descending
+        // Sort by total points descending (best score first)
         const sorted = [...eliminated].sort((a, b) => {
             const totalA = a.eliminationPoints + a.bonusPoints;
             const totalB = b.eliminationPoints + b.bonusPoints;
@@ -644,11 +662,15 @@ class TournamentScorer {
             } else {
                 pointsDisplay = `<strong>${player.eliminationPoints}</strong>`;
             }
+
+            // === ONLY apply gold/silver/bronze when tournament is complete ===
+            row.classList.remove('first-place', 'second-place', 'third-place');
             
-            // Add styling for top 3 ranks
-            if (index === 0) row.classList.add('first-place');
-            else if (index === 1) row.classList.add('second-place');
-            else if (index === 2) row.classList.add('third-place');
+            if (isComplete) {
+                if (index === 0) row.classList.add('first-place');
+                else if (index === 1) row.classList.add('second-place');
+                else if (index === 2) row.classList.add('third-place');
+            }
 
             row.innerHTML = `
                 <td>${tournamentRank}</td>
