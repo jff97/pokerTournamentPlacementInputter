@@ -110,7 +110,7 @@ class TournamentScorer {
 
     // === Player Management ===
 
-    addPlayer() {
+    async addPlayer() {
         const input = document.getElementById('playerNameInput');
         const name = input.value.trim();
         
@@ -119,8 +119,43 @@ class TournamentScorer {
             return;
         }
 
+        // Run name validation
+        const validationErrors = validateCheckInName(name);
+        if (validationErrors.length > 0) {
+            alert(validationErrors.join('\n'));
+            return;
+        }
+
         if (this.players.find(p => p.name.toLowerCase() === name.toLowerCase())) {
             alert('Player already exists');
+            return;
+        }
+
+        // Check if name exists in system
+        try {
+            const nameExists = await checkNameExists(name);
+            
+            if (!nameExists) {
+                // New player not found in system
+                const confirmed = confirm(
+                    `"${name}" is not found in the system.\n\n` +
+                    `Is this a new player?\n\n` +
+                    `Click OK to add as new player, or Cancel to re-enter the name.`
+                );
+                
+                if (!confirmed) {
+                    return;
+                }
+
+                // Check for similar names and warn
+                const similarNames = await getSimilarNames(name);
+                if (similarNames.length > 0) {
+                    alert(`⚠️ Similar names found in system: ${similarNames.join(', ')}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error checking name:', error);
+            alert('Unable to verify name in system. Please check your connection and try again.');
             return;
         }
 
