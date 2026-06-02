@@ -220,6 +220,7 @@ class TournamentScorer {
                 
                 // If no similar names or first name matches, go straight to new player confirmation
                 this.showNewPlayerConfirmation(name);
+                return;
             }
         } catch (error) {
             console.error('Error checking name:', error);
