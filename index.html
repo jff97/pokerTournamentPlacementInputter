@@ -52,12 +52,15 @@
             <div class="leaderboard">
                 <div class="leaderboard-header">
                     <h3>Current Standings</h3>
-                    <button id="exportResultsBtn" class="btn btn-secondary" style="display: none;">Save Results Picture</button>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button id="exportResultsBtn" class="btn btn-secondary" style="display: none;">Save Results Picture</button>
+                        <button id="submitRoundBtn" class="btn btn-secondary" style="display: none;">Submit Round</button>
+                    </div>
                 </div>
                 <table id="leaderboardTable">
                     <thead>
                         <tr>
-                            <th>Rank</th>
+                            <th>Place</th>
                             <th>Player</th>
                             <th>Points</th>
                             <th>Actions</th>
@@ -117,10 +120,92 @@
                 </div>
             </div>
         </div>
+
+        <!-- Similar Names Selection Modal -->
+        <div id="similarNamesModal" class="modal">
+            <div class="modal-content">
+                <h3>Similar Names Found</h3>
+                <div class="modal-body">
+                    <p id="similarNamesIntro"></p>
+                    <div id="similarNamesList" class="similar-names-list"></div>
+                </div>
+                <div class="modal-actions">
+                    <button id="continueNewPlayerBtn" class="btn btn-primary">Add as New Player</button>
+                    <button id="cancelSimilarNamesBtn" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Player Confirmation Modal -->
+        <div id="newPlayerModal" class="modal">
+            <div class="modal-content">
+                <h3>Confirm New Player</h3>
+                <div class="modal-body">
+                    <p id="newPlayerModalText"></p>
+                    <div class="form-group">
+                        <label for="newPlayerConfirmInput">Type "new player" to confirm:</label>
+                        <input type="text" id="newPlayerConfirmInput" placeholder='Type "new player"' />
+                    </div>
+                    <div id="newPlayerModalError" style="color: #d32f2f; margin-top: 10px; display: none;"></div>
+                </div>
+                <div class="modal-actions">
+                    <button id="confirmNewPlayerBtn" class="btn btn-primary">Confirm</button>
+                    <button id="cancelNewPlayerBtn" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remove Player Modal -->
+        <div id="removePlayerModal" class="modal">
+            <div class="modal-content">
+                <h3>Remove Player</h3>
+                <div class="modal-body">
+                    <p id="removePlayerMessage"></p>
+                    <p id="removePlayerWarning" style="color: #d32f2f; margin-top: 10px; display: none;"></p>
+                </div>
+                <div class="modal-actions">
+                    <button id="confirmRemovePlayerBtn" class="btn btn-danger">Remove</button>
+                    <button id="cancelRemovePlayerBtn" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Modal (generic) -->
+        <div id="messageModal" class="modal">
+            <div class="modal-content">
+                <h3 id="messageModalTitle">Message</h3>
+                <div class="modal-body">
+                    <p id="messageModalText"></p>
+                </div>
+                <div class="modal-actions">
+                    <button id="messageModalCloseBtn" class="btn btn-primary">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Round Complete Screen -->
+        <section id="roundCompleteSection" class="section" style="display: none;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h2>🎉 Round Complete!</h2>
+                <p style="font-size: 18px; color: #666;">Select which bar to submit these results to:</p>
+            </div>
+            
+            <div id="barSelectionContainer" style="margin-bottom: 30px;">
+                <div style="text-align: center; color: #999;">Loading bars...</div>
+            </div>
+
+            <div id="barLoadError" style="color: #d32f2f; text-align: center; margin-bottom: 20px; display: none;"></div>
+
+            <div style="text-align: center;">
+                <button id="backFromRoundCompleteBtn" class="btn btn-secondary">Back to Results</button>
+            </div>
+        </section>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="nameSimilarityService.js"></script>
     <script src="nameValidation.js"></script>
+    <script src="roundSubmission.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

@@ -1,3 +1,14 @@
+/**
+ * Global helper function to show message modal
+ * @param {string} title - Modal title
+ * @param {string} message - Modal message
+ */
+function showMessageModal(title, message) {
+    document.getElementById('messageModalTitle').textContent = title;
+    document.getElementById('messageModalText').textContent = message;
+    document.getElementById('messageModal').classList.add('active');
+}
+
 // Tournament Scorer Application
 class TournamentScorer {
     constructor() {
@@ -5,6 +16,8 @@ class TournamentScorer {
         this.totalPlayers = 0;
         this.nextEliminationOrder = 1;
         this.editingPlayer = null;
+        this.pendingPlayerName = null; // Track pending player for similar names modal
+        this.pendingPlayerToRemove = null; // Track pending player for remove confirmation
         
         this.init();
     }
@@ -98,7 +111,9 @@ class TournamentScorer {
         // Export results
         document.getElementById('exportResultsBtn').addEventListener('click', () => this.exportResults());
         
-        // Edit Modal
+        // Submit Round
+        document.getElementById('submitRoundBtn').addEventListener('click', () => roundSubmissionManager.showRoundCompleteScreen());
+        
         document.getElementById('saveEditBtn').addEventListener('click', () => this.saveEdit());
         document.getElementById('cancelEditBtn').addEventListener('click', () => this.closeEditModal());
         document.getElementById('removeScoreBtn').addEventListener('click', () => this.removeScore());
@@ -106,6 +121,39 @@ class TournamentScorer {
         // Eliminate Modal
         document.getElementById('confirmEliminateBtn').addEventListener('click', () => this.confirmEliminate());
         document.getElementById('cancelEliminateBtn').addEventListener('click', () => this.closeEliminateModal());
+
+        // Similar Names Modal
+        document.getElementById('continueNewPlayerBtn').addEventListener('click', () => this.showNewPlayerConfirmation(this.pendingPlayerName));
+        document.getElementById('cancelSimilarNamesBtn').addEventListener('click', () => this.closeSimilarNamesModal());
+
+        // New Player Confirmation Modal
+        document.getElementById('confirmNewPlayerBtn').addEventListener('click', () => this.confirmNewPlayerInput());
+        document.getElementById('cancelNewPlayerBtn').addEventListener('click', () => this.closeNewPlayerModal());
+        document.getElementById('newPlayerConfirmInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.confirmNewPlayerInput();
+        });
+
+        // Remove Player Modal
+        document.getElementById('confirmRemovePlayerBtn').addEventListener('click', () => this.confirmRemovePlayer());
+        document.getElementById('cancelRemovePlayerBtn').addEventListener('click', () => this.closeRemovePlayerModal());
+
+        // Message Modal
+        document.getElementById('messageModalCloseBtn').addEventListener('click', () => this.closeMessageModal());
+
+        // Round Complete Screen
+        document.getElementById('backFromRoundCompleteBtn').addEventListener('click', () => roundSubmissionManager.backFromRoundComplete());
+    }
+
+    // === Helper: Show Message Modal ===
+
+    showMessage(title, message) {
+        document.getElementById('messageModalTitle').textContent = title;
+        document.getElementById('messageModalText').textContent = message;
+        document.getElementById('messageModal').classList.add('active');
+    }
+
+    closeMessageModal() {
+        document.getElementById('messageModal').classList.remove('active');
     }
 
     // === Player Management ===
@@ -113,49 +161,69 @@ class TournamentScorer {
     async addPlayer() {
         const input = document.getElementById('playerNameInput');
         const name = input.value.trim();
+        console.log('addPlayer called with name:', name);
         
         if (!name) {
-            alert('Please enter a player name');
+            this.showMessage('Input Required', 'Please enter a player name');
             return;
         }
 
         // Run name validation
         const validationErrors = validateCheckInName(name);
+        console.log('Validation errors:', validationErrors);
         if (validationErrors.length > 0) {
-            alert(validationErrors.join('\n'));
+            // Check for similar names even when validation fails
+            try {
+                const similarNames = await getSimilarNames(name);
+                
+                if (similarNames.length > 0) {
+                    // Show modal with validation error and similar name suggestions
+                    this.showValidationErrorModal(name, validationErrors, similarNames);
+                } else {
+                    // No similar names, just show error with modal
+                    this.showMessage('Invalid Name', validationErrors.join('\n'));
+                }
+            } catch (error) {
+                this.showMessage('Invalid Name', validationErrors.join('\n'));
+            }
             return;
         }
 
         if (this.players.find(p => p.name.toLowerCase() === name.toLowerCase())) {
-            alert('Player already exists');
+            this.showMessage('Duplicate Player', 'Player already exists');
             return;
         }
 
         // Check if name exists in system
         try {
+            console.log('Checking if name exists in system:', name);
             const nameExists = await checkNameExists(name);
+            console.log('Name exists in system:', nameExists);
             
             if (!nameExists) {
-                // New player not found in system
-                const confirmed = confirm(
-                    `"${name}" is not found in the system.\n\n` +
-                    `Is this a new player?\n\n` +
-                    `Click OK to add as new player, or Cancel to re-enter the name.`
-                );
+                // Check for similar names first
+                const similarNames = await getSimilarNames(name);
                 
-                if (!confirmed) {
+                // If similar names exist, show the modal
+                if (similarNames.length > 0) {
+                    this.showSimilarNamesModal(name, similarNames);
                     return;
                 }
-
-                // Check for similar names and warn
-                const similarNames = await getSimilarNames(name);
-                if (similarNames.length > 0) {
-                    alert(`⚠️ Similar names found in system: ${similarNames.join(', ')}`);
+                
+                // If no similar names, check for players with same first name
+                const firstNameMatches = await getPlayersByFirstName(name);
+                
+                if (firstNameMatches.length > 0) {
+                    this.showSimilarNamesModal(name, firstNameMatches, 'firstNameMatch');
+                    return;
                 }
+                
+                // If no similar names or first name matches, go straight to new player confirmation
+                this.showNewPlayerConfirmation(name);
             }
         } catch (error) {
             console.error('Error checking name:', error);
-            alert('Unable to verify name in system. Please check your connection and try again.');
+            this.showMessage('Connection Error', 'Unable to verify name in system. Please check your connection and try again.');
             return;
         }
 
@@ -200,15 +268,51 @@ class TournamentScorer {
 
         // Prevent removing players who have already been eliminated
         if (player.eliminated) {
-            alert(`Cannot remove ${name} - they have already been eliminated. Use the Edit button to remove their score first.`);
+            this.showRemovePlayerError(name);
             return;
         }
 
-        // Simple confirmation (consistent with clearAll() and other destructive actions)
-        if (!confirm(`Remove ${name} from check-in?\n\nThis cannot be undone.`)) {
+        // Show confirmation modal
+        this.showRemovePlayerConfirmation(name);
+    }
+
+    showRemovePlayerError(name) {
+        document.getElementById('removePlayerMessage').textContent = `Cannot remove ${name}`;
+        document.getElementById('removePlayerWarning').textContent = 
+            `${name} has already been eliminated. Use the Edit button to remove their score first.`;
+        document.getElementById('removePlayerWarning').style.display = 'block';
+        
+        // Change button to just close
+        const confirmBtn = document.getElementById('confirmRemovePlayerBtn');
+        confirmBtn.textContent = 'OK';
+        confirmBtn.style.display = 'block';
+        document.getElementById('cancelRemovePlayerBtn').style.display = 'none';
+        
+        document.getElementById('removePlayerModal').classList.add('active');
+    }
+
+    showRemovePlayerConfirmation(name) {
+        this.pendingPlayerToRemove = name;
+        document.getElementById('removePlayerMessage').textContent = 
+            `Remove ${name} from check-in?\n\nThis cannot be undone.`;
+        document.getElementById('removePlayerWarning').style.display = 'none';
+        
+        // Reset buttons
+        const confirmBtn = document.getElementById('confirmRemovePlayerBtn');
+        confirmBtn.textContent = 'Remove';
+        confirmBtn.style.display = 'block';
+        document.getElementById('cancelRemovePlayerBtn').style.display = 'block';
+        
+        document.getElementById('removePlayerModal').classList.add('active');
+    }
+
+    confirmRemovePlayer() {
+        if (!this.pendingPlayerToRemove) {
+            this.closeRemovePlayerModal();
             return;
         }
 
+        const name = this.pendingPlayerToRemove;
         this.players = this.players.filter(p => p.name !== name);
         
         // If tournament is active, adjust totalPlayers and recalculate bonus points
@@ -217,20 +321,30 @@ class TournamentScorer {
             this.recalculateAllBonusPoints();
         }
         
+        this.closeRemovePlayerModal();
         this.saveToStorage();
         this.render();
+    }
+
+    closeRemovePlayerModal() {
+        this.pendingPlayerToRemove = null;
+        document.getElementById('removePlayerModal').classList.remove('active');
+        document.getElementById('removePlayerMessage').textContent = '';
+        document.getElementById('removePlayerWarning').textContent = '';
+        document.getElementById('removePlayerWarning').style.display = 'none';
     }
 
     // === Tournament Flow ===
 
     startTournament() {
         if (this.players.length === 0) {
-            alert('Please add players first');
+            this.showMessage('No Players', 'Please add players first');
             return;
         }
 
         this.totalPlayers = this.players.length;
         this.nextEliminationOrder = 1;
+        roundSubmissionManager.hasAutoShown = false;
         
         // Reset all players
         this.players.forEach(p => {
@@ -250,12 +364,13 @@ class TournamentScorer {
     backToCheckIn() {
         document.getElementById('checkInSection').style.display = 'block';
         document.getElementById('tournamentSection').style.display = 'none';
+        document.getElementById('roundCompleteSection').style.display = 'none';
         this.render();
     }
 
     resumeTournament() {
         if (this.totalPlayers === 0) {
-            alert('Please start a tournament first');
+            this.showMessage('Tournament Not Started', 'Please start a tournament first');
             return;
         }
 
@@ -285,7 +400,7 @@ class TournamentScorer {
     openAddMissingPlayerModal() {
         const activePlayers = this.getActivePlayers();
         if (activePlayers.length === 0) {
-            alert('No active players to add');
+            this.showMessage('No Active Players', 'No active players to add');
             return;
         }
 
@@ -305,19 +420,19 @@ class TournamentScorer {
     confirmEliminate() {
         const playerName = document.getElementById('selectMissingPlayer').value;
         if (!playerName) {
-            alert('Please select a player');
+            this.showMessage('Selection Required', 'Please select a player');
             return;
         }
 
         const player = this.players.find(p => p.name === playerName);
         if (!player || player.eliminated) {
-            alert('Invalid player selection');
+            this.showMessage('Invalid Selection', 'Invalid player selection');
             return;
         }
 
         const position = parseInt(document.getElementById('eliminatePosition').value);
         if (isNaN(position) || position < 1 || position > this.totalPlayers) {
-            alert(`Please enter a valid elimination order (1-${this.totalPlayers})`);
+            this.showMessage('Invalid Position', `Please enter a valid elimination order (1-${this.totalPlayers})`);
             return;
         }
 
@@ -339,6 +454,157 @@ class TournamentScorer {
     closeEliminateModal() {
         document.getElementById('selectMissingPlayer').value = '';
         document.getElementById('eliminateModal').classList.remove('active');
+    }
+
+    // === Similar Names Modal ===
+
+    showSimilarNamesModal(inputName, similarNames, matchType = 'similar') {
+        this.pendingPlayerName = inputName;
+        
+        // Set intro text based on match type
+        let introText;
+        if (matchType === 'firstNameMatch') {
+            introText = `"${inputName}" is not found in the system. Did you mean one of these players with the same first name?`;
+        } else {
+            introText = `"${inputName}" is not found in the system. Did you mean one of these?`;
+        }
+        
+        document.getElementById('similarNamesIntro').textContent = introText;
+        
+        // Clear and populate similar names list
+        const namesList = document.getElementById('similarNamesList');
+        namesList.innerHTML = '';
+        
+        similarNames.forEach(name => {
+            const btn = document.createElement('button');
+            btn.className = 'similar-name-btn';
+            btn.textContent = name;
+            btn.addEventListener('click', () => this.selectSimilarName(name));
+            namesList.appendChild(btn);
+        });
+        
+        // Show modal
+        document.getElementById('similarNamesModal').classList.add('active');
+    }
+
+    showValidationErrorModal(inputName, validationErrors, similarNames) {
+        this.pendingPlayerName = inputName;
+        
+        // Set intro text with validation error message
+        let introText = validationErrors.join('\n') + '\n\nDid you mean one of these?';
+        
+        document.getElementById('similarNamesIntro').innerHTML = 
+            `<span style="color: #d32f2f;">${validationErrors.join('<br>')}</span><br><br>Did you mean one of these?`;
+        
+        // Clear and populate similar names list
+        const namesList = document.getElementById('similarNamesList');
+        namesList.innerHTML = '';
+        
+        similarNames.forEach(name => {
+            const btn = document.createElement('button');
+            btn.className = 'similar-name-btn';
+            btn.textContent = name;
+            btn.addEventListener('click', () => this.selectSimilarName(name));
+            namesList.appendChild(btn);
+        });
+        
+        // Show modal
+        document.getElementById('similarNamesModal').classList.add('active');
+    }
+
+    selectSimilarName(name) {
+        const input = document.getElementById('playerNameInput');
+        
+        // Add the selected player
+        this.players.push({
+            name: name,
+            eliminationPoints: 0,
+            bonusPoints: 0,
+            eliminated: false,
+            eliminationOrder: null,
+            bonusActions: [false, false]
+        });
+
+        if (this.totalPlayers > 0) {
+            this.totalPlayers++;
+            this.recalculateAllBonusPoints();
+        }
+
+        input.value = '';
+        this.closeSimilarNamesModal();
+        this.saveToStorage();
+        this.render();
+    }
+
+    showNewPlayerConfirmation(name) {
+        this.pendingPlayerName = name;
+        this.closeSimilarNamesModal();
+        
+        // Show the new player modal
+        document.getElementById('newPlayerModalText').textContent = 
+            `"${name}" is not found in the system.`;
+        document.getElementById('newPlayerConfirmInput').value = '';
+        document.getElementById('newPlayerModalError').style.display = 'none';
+        document.getElementById('newPlayerModal').classList.add('active');
+        
+        // Focus on the input field
+        setTimeout(() => {
+            document.getElementById('newPlayerConfirmInput').focus();
+        }, 100);
+    }
+
+    confirmNewPlayerInput() {
+        const input = document.getElementById('newPlayerConfirmInput').value.toLowerCase().trim();
+        const errorDiv = document.getElementById('newPlayerModalError');
+        
+        if (input === 'new player') {
+            // Valid confirmation, add the player
+            this.closeNewPlayerModal();
+            this.addAsNewPlayer();
+        } else {
+            // Show error message
+            errorDiv.textContent = 'Please type exactly "new player" to confirm.';
+            errorDiv.style.display = 'block';
+            document.getElementById('newPlayerConfirmInput').value = '';
+            document.getElementById('newPlayerConfirmInput').focus();
+        }
+    }
+
+    closeNewPlayerModal() {
+        document.getElementById('newPlayerModal').classList.remove('active');
+        document.getElementById('newPlayerConfirmInput').value = '';
+        document.getElementById('newPlayerModalError').style.display = 'none';
+    }
+
+    addAsNewPlayer() {
+        const input = document.getElementById('playerNameInput');
+        
+        // Add the new player
+        this.players.push({
+            name: this.pendingPlayerName,
+            eliminationPoints: 0,
+            bonusPoints: 0,
+            eliminated: false,
+            eliminationOrder: null,
+            bonusActions: [false, false]
+        });
+
+        if (this.totalPlayers > 0) {
+            this.totalPlayers++;
+            this.recalculateAllBonusPoints();
+        }
+
+        input.value = '';
+        this.pendingPlayerName = null;
+        this.saveToStorage();
+        this.render();
+    }
+
+    closeSimilarNamesModal() {
+        document.getElementById('similarNamesModal').classList.remove('active');
+        document.getElementById('similarNamesIntro').textContent = '';
+        document.getElementById('similarNamesList').innerHTML = '';
+        document.getElementById('continueNewPlayerBtn').textContent = 'Add as New Player';
     }
 
     // === Edit Modal ===
@@ -363,7 +629,7 @@ class TournamentScorer {
 
         const newPosition = parseInt(document.getElementById('editEliminationOrder').value);
         if (isNaN(newPosition) || newPosition < 1 || newPosition > this.totalPlayers) {
-            alert(`Please enter a valid elimination order (1-${this.totalPlayers})`);
+            this.showMessage('Invalid Position', `Please enter a valid elimination order (1-${this.totalPlayers})`);
             return;
         }
 
@@ -476,70 +742,66 @@ class TournamentScorer {
 
     // === Storage & Reset ===
 
-        exportResults() {
+    exportResults() {
         const eliminated = this.getEliminatedPlayers();
         if (eliminated.length === 0) {
-            alert('No results to export yet');
+            this.showMessage('No Results', 'No results to export yet');
             return;
         }
 
         const leaderboard = document.querySelector('.leaderboard');
         if (!leaderboard) {
-            alert('Leaderboard element not found');
+            console.error('Leaderboard element not found');
             return;
         }
 
-        // Temporarily hide the export button so it doesn't appear in the image
-        const exportBtn = document.getElementById('exportResultsBtn');
-        const originalDisplay = exportBtn.style.display;
-        exportBtn.style.display = 'none';
+        // Hide buttons during capture
+        const buttons = [
+            document.getElementById('exportResultsBtn'),
+            document.getElementById('submitRoundBtn')
+        ];
+        const originalDisplays = buttons.map(btn => btn?.style.display);
+        buttons.forEach(btn => { if (btn) btn.style.display = 'none'; });
 
-        // Improved html2canvas options for full capture
+        // Capture and download
         html2canvas(leaderboard, {
             backgroundColor: '#ffffff',
-            scale: 2,                    // High resolution
+            scale: 2,
             useCORS: true,
             allowTaint: true,
-            scrollX: 0,
-            scrollY: 0,
-            width: leaderboard.scrollWidth,   // Full width including any horizontal scroll
-            height: leaderboard.scrollHeight, // Full height including any vertical scroll
-            x: 0,
-            y: 0
+            scrollY: -window.scrollY,
+            windowHeight: leaderboard.scrollHeight + 100
         }).then(canvas => {
-            // Restore the button
-            exportBtn.style.display = originalDisplay;
-
-            // Download as PNG
+            // Restore buttons
+            buttons.forEach((btn, i) => { if (btn) btn.style.display = originalDisplays[i]; });
+            
+            // Download
             canvas.toBlob(blob => {
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                const date = new Date().toISOString().split('T')[0];
-                link.download = `tournament-results-${date}.png`;
-                link.href = url;
-                link.click();
-                URL.revokeObjectURL(url);
+                if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.download = `tournament-results-${new Date().toISOString().split('T')[0]}.png`;
+                    link.href = url;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                }
             });
         }).catch(err => {
-            // Restore button even if it fails
-            exportBtn.style.display = originalDisplay;
-            alert('Error generating image. Please take a screenshot manually.');
-            console.error('html2canvas error:', err);
+            buttons.forEach((btn, i) => { if (btn) btn.style.display = originalDisplays[i]; });
+            console.error('Screenshot error:', err);
         });
     }
 
     clearAll() {
-        if (!confirm('This will clear ALL data including players and scores. Are you sure?')) {
-            return;
-        }
-
         this.players = [];
         this.totalPlayers = 0;
         this.nextEliminationOrder = 1;
+        roundSubmissionManager.hasAutoShown = false;
         localStorage.removeItem('tournamentData');
         
         document.getElementById('checkInSection').style.display = 'block';
         document.getElementById('tournamentSection').style.display = 'none';
+        document.getElementById('roundCompleteSection').style.display = 'none';
         
         this.render();
     }
@@ -642,6 +904,11 @@ class TournamentScorer {
         // Update header info
         document.getElementById('totalPlayers').textContent = this.totalPlayers;
         document.getElementById('nextElimination').textContent = this.nextEliminationOrder;
+        
+        // Hide Next Elimination if no active players left
+        const nextEliminationSpan = document.getElementById('nextElimination').parentElement;
+        nextEliminationSpan.style.display = active.length > 0 ? '' : 'none';
+        
         document.getElementById('playersRemaining').textContent = this.totalPlayers - (this.nextEliminationOrder - 1);
 
         // Show/hide Add Missed Player button (only if someone eliminated and players still active)
@@ -660,16 +927,19 @@ class TournamentScorer {
         const tbody = document.getElementById('leaderboardBody');
         const eliminated = this.getEliminatedPlayers();
         const exportBtn = document.getElementById('exportResultsBtn');
+        const submitBtn = document.getElementById('submitRoundBtn');
 
-        // Show export button only when tournament is 100% complete
+        // Check if tournament is complete (same logic as before)
         const isComplete = (eliminated.length === this.totalPlayers && this.totalPlayers > 0);
         
         if (isComplete) {
             exportBtn.style.display = 'block';
             exportBtn.classList.add('tournament-complete');
+            submitBtn.style.display = 'block';
         } else {
             exportBtn.style.display = 'none';
             exportBtn.classList.remove('tournament-complete');
+            submitBtn.style.display = 'none';
         }
 
         if (eliminated.length === 0) {
@@ -715,6 +985,12 @@ class TournamentScorer {
             `;
             tbody.appendChild(row);
         });
+
+        // Show round complete screen after rendering leaderboard
+        // TEMPORARILY DISABLED - Will enable again when making this feature mandatory
+        // if (isComplete) {
+        //     roundSubmissionManager.showRoundCompleteScreen(true);
+        // }
     }
 
     renderActivePlayers() {

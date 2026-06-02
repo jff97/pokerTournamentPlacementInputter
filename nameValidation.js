@@ -63,7 +63,13 @@ function checkNameExists(name) {
  */
 function getSimilarNames(name) {
     return getPlayerNames()
-        .then(playerNames => findSimilarNames(name, playerNames))
+        .then(playerNames => {
+            console.log('Looking for similar names for:', name);
+            console.log('Available player names:', playerNames);
+            const result = findSimilarNames(name, playerNames);
+            console.log('Similar names found:', result);
+            return result;
+        })
         .catch(error => {
             console.error('Error getting similar names:', error);
             return [];
@@ -71,40 +77,48 @@ function getSimilarNames(name) {
 }
 
 /**
- * Finds similar names to the input using a simple string similarity check
+ * Finds similar names to the input using the NameSimilarityService
  * @param {string} inputName - The input name to check
  * @param {string[]} allPlayerNames - Array of existing player names
- * @returns {string[]} Array of similar names found
+ * @returns {string[]} Array of similar names found (max 5)
  */
 function findSimilarNames(inputName, allPlayerNames) {
-    inputName = inputName.toLowerCase().trim();
-    const similar = [];
+    if (typeof NameSimilarityService === 'undefined') {
+        console.warn('NameSimilarityService not loaded');
+        return [];
+    }
     
-    allPlayerNames.forEach(playerName => {
-        const curPlayerName = playerName.toLowerCase().trim();
-        
-        // Check if one contains the other (substring match)
-        if (curPlayerName.includes(inputName) || inputName.includes(curPlayerName)) {
-            similar.push(playerName);
-            return;
-        }
-        
-        // Check if names are similar
-        if (isSimilar(inputName, curPlayerName)) {
-            similar.push(playerName);
-        }
-    });
+    // Use NameSimilarityService to find all similar names
+    const similarNames = NameSimilarityService.findAllSimilarNames(inputName, allPlayerNames);
     
-    return similar.slice(0, 5); // Return top 5 similar names
+    // Return top 7 similar names
+    return similarNames.slice(0, 7);
 }
 
 /**
- * Determines if two names are similar
- * @param {string} name1 - First name
- * @param {string} name2 - Second name
- * @returns {boolean} True if names are similar
+ * Gets players with the same first name as the input
+ * @param {string} name - The input name to check
+ * @returns {Promise<string[]>} Array of player names with same first name (max 5)
  */
-function isSimilar(name1, name2) {
-    // TODO: Implement similarity check (e.g., Levenshtein distance, phonetic matching, etc.)
-    return false;
+function getPlayersByFirstName(name) {
+    return getPlayerNames()
+        .then(playerNames => {
+            // Extract first name from input
+            const inputFirstName = name.trim().split(/\s+/)[0].toLowerCase();
+            
+            // Filter players with matching first name
+            const matchingPlayers = playerNames.filter(playerName => {
+                const playerFirstName = playerName.trim().split(/\s+/)[0].toLowerCase();
+                return playerFirstName === inputFirstName;
+            });
+            
+            console.log('Players with first name "' + inputFirstName + '":', matchingPlayers);
+            
+            // Return top 7
+            return matchingPlayers.slice(0, 7);
+        })
+        .catch(error => {
+            console.error('Error getting players by first name:', error);
+            return [];
+        });
 }
