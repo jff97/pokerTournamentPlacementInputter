@@ -160,7 +160,6 @@ class RoundSubmissionManager {
         }
 
         showMessageModal('Success', `✅ Round successfully submitted to ${barName}!\nRound ID: ${data.round_id}`);
-        scorer.clearAll();
         this.showScreen(RoundSubmissionManager.DOM.CHECK_IN_SECTION);
         this.hasAutoShown = false;
     }
