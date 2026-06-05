@@ -20,6 +20,9 @@ class RoundSubmissionManager {
 
     constructor() {
         this.hasAutoShown = false;
+        this.warmupIntervalId = null;
+        this.warmupCount = 0;
+        this.maxWarmups = 15; // Limit to 15 warmups (30 minutes at 2-min intervals)
     }
 
     async showRoundCompleteScreen(isAutomatic = false) {
@@ -34,6 +37,9 @@ class RoundSubmissionManager {
         // Download results and switch screens
         scorer.exportResults();
         this.showScreen(RoundSubmissionManager.DOM.ROUND_COMPLETE_SECTION);
+
+        // Start warmup interval
+        this.startWarmupInterval();
 
         // Load and render bars
         await this.loadBars();
@@ -159,6 +165,7 @@ class RoundSubmissionManager {
             return;
         }
 
+        this.stopWarmupInterval();
         showMessageModal('Success', `✅ Round successfully submitted to ${barName}!\nRound ID: ${data.round_id}`);
         this.showScreen(RoundSubmissionManager.DOM.CHECK_IN_SECTION);
         this.hasAutoShown = false;
@@ -179,8 +186,40 @@ class RoundSubmissionManager {
     }
 
     backFromRoundComplete() {
+        this.stopWarmupInterval();
         this.showScreen(RoundSubmissionManager.DOM.TOURNAMENT_SECTION);
         this.hasAutoShown = false;
+    }
+
+    // Simple hook to warm up Azure server when top 3 finalists are eliminated
+    async warmupServer() {
+        try {
+            this.warmupCount++;
+            fetch('https://api.johnfoxweb.com/', { method: 'GET' });
+            
+            // Stop after reaching max warmups
+            if (this.warmupCount >= this.maxWarmups) {
+                this.stopWarmupInterval();
+            }
+        } catch (e) {
+            // Silently ignore - this is just a warmup call
+        }
+    }
+
+    startWarmupInterval() {
+        // Start interval to warm up server every 2 minutes (all browsers support setInterval)
+        if (this.warmupIntervalId === null) {
+            this.warmupCount = 0;
+            this.warmupServer(); // Immediate call
+            this.warmupIntervalId = setInterval(() => this.warmupServer(), 120000); // 2 minutes = 120000ms
+        }
+    }
+
+    stopWarmupInterval() {
+        if (this.warmupIntervalId !== null) {
+            clearInterval(this.warmupIntervalId);
+            this.warmupIntervalId = null;
+        }
     }
 
     showScreen(screenId) {
