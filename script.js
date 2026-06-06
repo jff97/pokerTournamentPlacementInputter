@@ -18,6 +18,8 @@ class TournamentScorer {
         this.editingPlayer = null;
         this.pendingPlayerName = null; // Track pending player for similar names modal
         this.pendingPlayerToRemove = null; // Track pending player for remove confirmation
+        this.selectedMissingPlayer = null; // Track selected player for add missing player modal
+        this.selectedMissingPlayerPosition = null; // Track selected position for add missing player
         
         this.init();
     }
@@ -29,6 +31,15 @@ class TournamentScorer {
     }
 
     // === Helper Methods ===
+    
+    getOrdinalPlace(number) {
+        const j = number % 10;
+        const k = number % 100;
+        if (j === 1 && k !== 11) return number + 'st';
+        if (j === 2 && k !== 12) return number + 'nd';
+        if (j === 3 && k !== 13) return number + 'rd';
+        return number + 'th';
+    }
     
     getEliminatedPlayers() {
         return this.players.filter(p => p.eliminated);
@@ -114,13 +125,29 @@ class TournamentScorer {
         // Submit Round
         document.getElementById('submitRoundBtn').addEventListener('click', () => roundSubmissionManager.showRoundCompleteScreen());
         
-        document.getElementById('saveEditBtn').addEventListener('click', () => this.saveEdit());
         document.getElementById('cancelEditBtn').addEventListener('click', () => this.closeEditModal());
         document.getElementById('removeScoreBtn').addEventListener('click', () => this.removeScore());
         
         // Eliminate Modal
         document.getElementById('confirmEliminateBtn').addEventListener('click', () => this.confirmEliminate());
         document.getElementById('cancelEliminateBtn').addEventListener('click', () => this.closeEliminateModal());
+        document.getElementById('backToPlayerSelectBtn').addEventListener('click', () => this.backToPlayerSelection());
+        document.getElementById('selectMissingPlayer').addEventListener('change', () => {
+            // Auto-advance to position selection when a player is selected
+            const playerName = document.getElementById('selectMissingPlayer').value;
+            if (playerName) {
+                this.showPositionSelection();
+            } else {
+                // Reset if empty option selected
+                this.selectedMissingPlayer = null;
+                this.selectedMissingPlayerPosition = null;
+                document.getElementById('addPlayerStep1').style.display = 'block';
+                document.getElementById('addPlayerStep2').style.display = 'none';
+                document.getElementById('backToPlayerSelectBtn').style.display = 'none';
+                document.getElementById('confirmEliminateBtn').style.display = 'none';
+                document.getElementById('cancelEliminateBtn').style.display = 'inline-block';
+            }
+        });
 
         // Similar Names Modal
         document.getElementById('continueNewPlayerBtn').addEventListener('click', () => this.showNewPlayerConfirmation(this.pendingPlayerName));
@@ -405,6 +432,11 @@ class TournamentScorer {
             return;
         }
 
+        // Reset state
+        this.selectedMissingPlayer = null;
+        this.selectedMissingPlayerPosition = null;
+
+        // Show step 1 (player selection)
         const select = document.getElementById('selectMissingPlayer');
         select.innerHTML = '<option value="">-- Choose Player --</option>';
         activePlayers.forEach(player => {
@@ -414,11 +446,19 @@ class TournamentScorer {
             select.appendChild(option);
         });
 
-        document.getElementById('eliminatePosition').value = this.nextEliminationOrder;
+        // Show step 1, hide step 2
+        document.getElementById('addPlayerStep1').style.display = 'block';
+        document.getElementById('addPlayerStep2').style.display = 'none';
+        
+        // Update button visibility
+        document.getElementById('backToPlayerSelectBtn').style.display = 'none';
+        document.getElementById('confirmEliminateBtn').style.display = 'none';
+        document.getElementById('cancelEliminateBtn').style.display = 'inline-block';
+
         document.getElementById('eliminateModal').classList.add('active');
     }
 
-    confirmEliminate() {
+    showPositionSelection() {
         const playerName = document.getElementById('selectMissingPlayer').value;
         if (!playerName) {
             this.showMessage('Selection Required', 'Please select a player');
@@ -431,11 +471,92 @@ class TournamentScorer {
             return;
         }
 
-        const position = parseInt(document.getElementById('eliminatePosition').value);
-        if (isNaN(position) || position < 1 || position > this.totalPlayers) {
-            this.showMessage('Invalid Position', `Please enter a valid elimination order (1-${this.totalPlayers})`);
+        this.selectedMissingPlayer = player;
+        const eliminatedPlayers = this.getEliminatedPlayers()
+            .sort((a, b) => b.eliminationOrder - a.eliminationOrder);
+
+        const container = document.getElementById('positionButtonsContainer');
+        container.innerHTML = '';
+
+        if (eliminatedPlayers.length === 0) {
+            this.addPositionButton(container, '1st place', 1);
+            this.showPositionStep();
             return;
         }
+
+        eliminatedPlayers.forEach(ep => {
+            const placement = this.getOrdinalPlace(this.totalPlayers - ep.eliminationOrder + 1);
+            this.addPlayerToList(container, `${placement} - ${ep.name}`);
+            this.addPositionButton(container, 'Went Out Here', ep.eliminationOrder);
+        });
+
+        this.showPositionStep();
+    }
+
+    addPlayerToList(container, text) {
+        const div = document.createElement('div');
+        div.className = 'position-player-name';
+        div.textContent = text;
+        container.appendChild(div);
+    }
+
+    addPositionButton(container, text, position) {
+        const btn = document.createElement('button');
+        btn.className = 'position-button';
+        btn.textContent = text;
+        btn.addEventListener('click', (e) => this.selectPosition(position, e.currentTarget));
+        container.appendChild(btn);
+    }
+
+    showPositionStep() {
+        document.getElementById('addPlayerStep1').style.display = 'none';
+        document.getElementById('addPlayerStep2').style.display = 'block';
+        document.getElementById('backToPlayerSelectBtn').style.display = 'inline-block';
+        document.getElementById('confirmEliminateBtn').style.display = 'none';
+        document.getElementById('cancelEliminateBtn').style.display = 'inline-block';
+    }
+
+    selectPosition(position, buttonElement) {
+        this.selectedMissingPlayerPosition = position;
+        
+        // Update button styling to show selection
+        const buttons = document.querySelectorAll('.position-button');
+        buttons.forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        
+        // Mark the clicked button as selected
+        if (buttonElement) {
+            buttonElement.classList.add('selected');
+        }
+        
+        // Immediately confirm and add the player
+        this.confirmEliminate();
+    }
+
+    backToPlayerSelection() {
+        this.selectedMissingPlayer = null;
+        this.selectedMissingPlayerPosition = null;
+
+        // Show step 1, hide step 2
+        document.getElementById('addPlayerStep1').style.display = 'block';
+        document.getElementById('addPlayerStep2').style.display = 'none';
+        document.getElementById('selectMissingPlayer').value = '';
+        
+        // Update button visibility
+        document.getElementById('backToPlayerSelectBtn').style.display = 'none';
+        document.getElementById('confirmEliminateBtn').style.display = 'none';
+        document.getElementById('cancelEliminateBtn').style.display = 'inline-block';
+    }
+
+    confirmEliminate() {
+        if (!this.selectedMissingPlayer || !this.selectedMissingPlayerPosition) {
+            this.showMessage('Selection Required', 'Please select a player and position');
+            return;
+        }
+
+        const player = this.selectedMissingPlayer;
+        const position = this.selectedMissingPlayerPosition;
 
         // Shift all players at or after this position up by one
         this.shiftPlayersUp(position);
@@ -459,6 +580,8 @@ class TournamentScorer {
 
     closeEliminateModal() {
         document.getElementById('selectMissingPlayer').value = '';
+        this.selectedMissingPlayer = null;
+        this.selectedMissingPlayerPosition = null;
         document.getElementById('eliminateModal').classList.remove('active');
     }
 
@@ -621,7 +744,6 @@ class TournamentScorer {
 
         this.editingPlayer = player;
         document.getElementById('editPlayerName').textContent = player.name;
-        document.getElementById('editEliminationOrder').value = player.eliminationOrder;
         document.getElementById('editModal').classList.add('active');
     }
 
@@ -630,52 +752,6 @@ class TournamentScorer {
         document.getElementById('editModal').classList.remove('active');
     }
 
-    saveEdit() {
-        if (!this.editingPlayer) return;
-
-        const newPosition = parseInt(document.getElementById('editEliminationOrder').value);
-        if (isNaN(newPosition) || newPosition < 1 || newPosition > this.totalPlayers) {
-            this.showMessage('Invalid Position', `Please enter a valid elimination order (1-${this.totalPlayers})`);
-            return;
-        }
-
-        const oldPosition = this.editingPlayer.eliminationOrder;
-
-        if (oldPosition !== newPosition) {
-            if (newPosition < oldPosition) {
-                // Moving earlier: shift players in range [newPosition, oldPosition) up by 1
-                this.players.forEach(player => {
-                    if (player.eliminated && player.name !== this.editingPlayer.name) {
-                        if (player.eliminationOrder >= newPosition && player.eliminationOrder < oldPosition) {
-                            player.eliminationOrder++;
-                            player.eliminationPoints = player.eliminationOrder;
-                            this.recalculateBonusPoints(player);
-                        }
-                    }
-                });
-            } else {
-                // Moving later: shift players in range (oldPosition, newPosition] down by 1
-                this.players.forEach(player => {
-                    if (player.eliminated && player.name !== this.editingPlayer.name) {
-                        if (player.eliminationOrder > oldPosition && player.eliminationOrder <= newPosition) {
-                            player.eliminationOrder--;
-                            player.eliminationPoints = player.eliminationOrder;
-                            this.recalculateBonusPoints(player);
-                        }
-                    }
-                });
-            }
-        }
-
-        // Update the edited player
-        this.editingPlayer.eliminationOrder = newPosition;
-        this.editingPlayer.eliminationPoints = newPosition;
-        this.recalculateBonusPoints(this.editingPlayer);
-
-        this.saveToStorage();
-        this.closeEditModal();
-        this.render();
-    }
 
     removeScore() {
         if (!this.editingPlayer) return;
@@ -987,7 +1063,7 @@ class TournamentScorer {
                 <td>${tournamentRank}</td>
                 <td><strong>${player.name}</strong></td>
                 <td>${pointsDisplay}</td>
-                <td><button class="edit-btn" onclick="scorer.openEditModal('${player.name}')">Edit</button></td>
+                <td><button class="edit-btn btn-danger" onclick="scorer.openEditModal('${player.name}')">✕</button></td>
             `;
             tbody.appendChild(row);
         });
