@@ -32,6 +32,10 @@ class TournamentScorer {
 
     // === Helper Methods ===
     
+    normalizeName(name) {
+        return name.toLowerCase().trim().replace(/\s+/g, ' ');
+    }
+    
     getOrdinalPlace(number) {
         const j = number % 10;
         const k = number % 100;
@@ -216,8 +220,11 @@ class TournamentScorer {
             return;
         }
 
-        if (this.players.find(p => p.name.toLowerCase() === name.toLowerCase())) {
-            this.showMessage('Duplicate Player', 'Player already exists');
+        // Normalize name for comparison (case and spacing insensitive)
+        const normalizedName = this.normalizeName(name);
+        
+        if (this.players.find(p => this.normalizeName(p.name) === normalizedName)) {
+            this.showMessage('Duplicate Player', 'Player already checked in');
             return;
         }
 
@@ -612,6 +619,9 @@ class TournamentScorer {
             namesList.appendChild(btn);
         });
         
+        // Show "Add as New Player" button since name is valid but not found
+        document.getElementById('continueNewPlayerBtn').style.display = 'block';
+        
         // Show modal
         document.getElementById('similarNamesModal').classList.add('active');
     }
@@ -637,12 +647,23 @@ class TournamentScorer {
             namesList.appendChild(btn);
         });
         
+        // Hide "Add as New Player" button since name failed validation
+        document.getElementById('continueNewPlayerBtn').style.display = 'none';
+        
         // Show modal
         document.getElementById('similarNamesModal').classList.add('active');
     }
 
     selectSimilarName(name) {
         const input = document.getElementById('playerNameInput');
+        
+        // Check for duplicates (case and spacing insensitive)
+        const normalizedName = this.normalizeName(name);
+        if (this.players.find(p => this.normalizeName(p.name) === normalizedName)) {
+            this.closeSimilarNamesModal();
+            this.showMessage('Duplicate Player', 'Player already checked in');
+            return;
+        }
         
         // Add the selected player
         this.players.push({
@@ -707,6 +728,22 @@ class TournamentScorer {
 
     addAsNewPlayer() {
         const input = document.getElementById('playerNameInput');
+        
+        // Re-validate the name before adding as new player
+        const validationErrors = validateCheckInName(this.pendingPlayerName);
+        if (validationErrors.length > 0) {
+            this.closeNewPlayerModal();
+            this.showMessage('Invalid Name', validationErrors.join('\n'));
+            return;
+        }
+        
+        // Check for duplicates (case and spacing insensitive)
+        const normalizedName = this.normalizeName(this.pendingPlayerName);
+        if (this.players.find(p => this.normalizeName(p.name) === normalizedName)) {
+            this.closeNewPlayerModal();
+            this.showMessage('Duplicate Player', 'Player already checked in');
+            return;
+        }
         
         // Add the new player
         this.players.push({
