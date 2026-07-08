@@ -882,7 +882,7 @@ class TournamentScorer {
         const originalDisplays = buttons.map(btn => btn?.style.display);
         buttons.forEach(btn => { if (btn) btn.style.display = 'none'; });
 
-        // Capture and download
+        // Capture and share/download
         html2canvas(leaderboard, {
             backgroundColor: '#ffffff',
             scale: 2,
@@ -894,21 +894,45 @@ class TournamentScorer {
             // Restore buttons
             buttons.forEach((btn, i) => { if (btn) btn.style.display = originalDisplays[i]; });
             
-            // Download
+            // Convert canvas to blob and share or download
             canvas.toBlob(blob => {
                 if (blob) {
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.download = `tournament-results-${new Date().toISOString().split('T')[0]}.png`;
-                    link.href = url;
-                    link.click();
-                    URL.revokeObjectURL(url);
+                    this.shareOrDownloadImage(blob);
                 }
             });
         }).catch(err => {
             buttons.forEach((btn, i) => { if (btn) btn.style.display = originalDisplays[i]; });
             console.error('Screenshot error:', err);
         });
+    }
+
+    shareOrDownloadImage(blob) {
+        const fileName = `tournament-results-${new Date().toISOString().split('T')[0]}.png`;
+        
+        // Check if Web Share API is available
+        if (navigator.share) {
+            // Convert blob to File for sharing
+            const file = new File([blob], fileName, { type: 'image/png' });
+            
+            navigator.share({
+                files: [file],
+                title: 'Tournament Results',
+                text: 'Tournament Results'
+            }).catch(err => {
+                // User cancelled share, fall back to download
+                if (err.name !== 'AbortError') {
+                    console.error('Share error:', err);
+                }
+            });
+        } else {
+            // Fallback: traditional download for unsupported browsers
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
     }
 
     clearAll() {
