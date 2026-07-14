@@ -190,7 +190,6 @@ class TournamentScorer {
     async addPlayer() {
         const input = document.getElementById('playerNameInput');
         const name = input.value.trim();
-        console.log('addPlayer called with name:', name);
         
         if (!name) {
             this.showMessage('Input Required', 'Please enter a player name');
@@ -199,7 +198,6 @@ class TournamentScorer {
 
         // Run name validation
         const validationErrors = validateCheckInName(name);
-        console.log('Validation errors:', validationErrors);
         if (validationErrors.length > 0) {
             // Check for similar names even when validation fails
             try {
@@ -228,9 +226,7 @@ class TournamentScorer {
 
         // Check if name exists in system
         try {
-            console.log('Checking if name exists in system:', name);
             const nameExists = await checkNameExists(name);
-            console.log('Name exists in system:', nameExists);
             
             if (!nameExists) {
                 // Check for similar names first
@@ -684,21 +680,50 @@ class TournamentScorer {
         this.render();
     }
 
-    showNewPlayerConfirmation(name) {
+    async showNewPlayerConfirmation(name) {
         this.pendingPlayerName = name;
         this.closeSimilarNamesModal();
         
-        // Show the new player modal
+        // Populate modal text and clear form
         document.getElementById('newPlayerModalText').textContent = 
             `"${name}" is not found in the system.`;
         document.getElementById('newPlayerConfirmInput').value = '';
         document.getElementById('newPlayerModalError').style.display = 'none';
-        document.getElementById('newPlayerModal').classList.add('active');
         
-        // Focus on the input field
+        // Find and display closest name matches
+        try {
+            const allPlayerNames = await getPlayerNames();
+            const closestMatches = findClosestName(name, allPlayerNames);
+            this.displayClosestMatches(closestMatches);
+        } catch (error) {
+            console.error('Error finding closest match:', error);
+            document.getElementById('closestMatchContainer').style.display = 'none';
+        }
+        
+        // Show modal and focus input
+        document.getElementById('newPlayerModal').classList.add('active');
         setTimeout(() => {
             document.getElementById('newPlayerConfirmInput').focus();
         }, 100);
+    }
+    
+    displayClosestMatches(matches) {
+        const matchContainer = document.getElementById('closestMatchContainer');
+        const matchOptions = document.getElementById('closestMatchOptions');
+        
+        if (matches && matches.length > 0) {
+            matchOptions.innerHTML = '';
+            matches.forEach(matchName => {
+                const btn = document.createElement('button');
+                btn.className = 'similar-name-btn';
+                btn.textContent = matchName;
+                btn.addEventListener('click', () => this.selectSimilarName(matchName));
+                matchOptions.appendChild(btn);
+            });
+            matchContainer.style.display = 'block';
+        } else {
+            matchContainer.style.display = 'none';
+        }
     }
 
     confirmNewPlayerInput() {

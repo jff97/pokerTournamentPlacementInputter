@@ -139,6 +139,10 @@
                 <h3>Confirm New Player</h3>
                 <div class="modal-body">
                     <p id="newPlayerModalText"></p>
+                    <div id="closestMatchContainer" style="display: none; margin-bottom: 15px;">
+                        <p style="font-weight: 600; margin-bottom: 10px;">Did you mean:</p>
+                        <div id="closestMatchOptions" class="similar-names-list"></div>
+                    </div>
                     <div class="form-group">
                         <label for="newPlayerConfirmInput">Type "new player" to confirm:</label>
                         <input type="text" id="newPlayerConfirmInput" placeholder='Type "new player"' />

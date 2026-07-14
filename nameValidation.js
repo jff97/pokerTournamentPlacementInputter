@@ -64,10 +64,7 @@ function checkNameExists(name) {
 function getSimilarNames(name) {
     return getPlayerNames()
         .then(playerNames => {
-            console.log('Looking for similar names for:', name);
-            console.log('Available player names:', playerNames);
             const result = findSimilarNames(name, playerNames);
-            console.log('Similar names found:', result);
             return result;
         })
         .catch(error => {
@@ -112,8 +109,6 @@ function getPlayersByFirstName(name) {
                 return playerFirstName === inputFirstName;
             });
             
-            console.log('Players with first name "' + inputFirstName + '":', matchingPlayers);
-            
             // Return top 7
             return matchingPlayers.slice(0, 7);
         })
@@ -121,4 +116,49 @@ function getPlayersByFirstName(name) {
             console.error('Error getting players by first name:', error);
             return [];
         });
+}
+
+/**
+ * Finds the closest names by Levenshtein distance with progressive threshold relaxation
+ * Returns up to 3 closest matching names with similarity above configured thresholds
+ * Does not force results - only returns names that meet minimum threshold
+ * @param {string} inputName - The input name to match
+ * @param {string[]} allPlayerNames - Array of all player names
+ * @returns {string[]} Array of up to 3 closest matching names (empty array if none meet threshold)
+ */
+function findClosestName(inputName, allPlayerNames) {
+    if (typeof NameSimilarityService === 'undefined') {
+        console.warn('NameSimilarityService not loaded');
+        return [];
+    }
+    
+    const normalizeForComparison = (name) => name.toLowerCase().trim().replace(/\s+/g, ' ');
+    const normalizedInput = normalizeForComparison(inputName);
+    
+    // Calculate similarity scores for all player names, excluding exact matches (normalized)
+    const allScores = allPlayerNames
+        .filter(playerName => normalizeForComparison(playerName) !== normalizedInput)
+        .map(playerName => ({
+            name: playerName,
+            score: NameSimilarityService.levenshteinSimilarity(inputName, playerName)
+        }))
+        .sort((a, b) => b.score - a.score);
+    
+    // Progressive thresholds to find matches (relaxes over time)
+    const thresholds = [85, 80, 75, 70, 65, 60, 55, 50, 45, 40];
+    
+    for (let threshold of thresholds) {
+        const matchesAtThreshold = allScores
+            .filter(m => m.score > threshold)
+            .slice(0, 3)
+            .map(m => m.name);
+        
+        // Return matches at this threshold (1, 2, or 3 names - doesn't force to 3)
+        if (matchesAtThreshold.length > 0) {
+            return matchesAtThreshold;
+        }
+    }
+    
+    // No matches met any threshold
+    return [];
 }
