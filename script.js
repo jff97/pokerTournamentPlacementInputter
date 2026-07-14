@@ -123,8 +123,6 @@ class TournamentScorer {
         // Clear all
         document.getElementById('clearAllBtn').addEventListener('click', () => this.clearAll());
         
-        // Export results
-        document.getElementById('exportResultsBtn').addEventListener('click', () => this.exportResults());
         
         // Submit Round
         document.getElementById('submitRoundBtn').addEventListener('click', () => roundSubmissionManager.showRoundCompleteScreen());
@@ -1069,19 +1067,14 @@ class TournamentScorer {
     renderLeaderboard() {
         const tbody = document.getElementById('leaderboardBody');
         const eliminated = this.getEliminatedPlayers();
-        const exportBtn = document.getElementById('exportResultsBtn');
         const submitBtn = document.getElementById('submitRoundBtn');
 
         // Check if tournament is complete (same logic as before)
         const isComplete = (eliminated.length === this.totalPlayers && this.totalPlayers > 0);
         
         if (isComplete) {
-            exportBtn.style.display = 'block';
-            exportBtn.classList.add('tournament-complete');
             submitBtn.style.display = 'block';
         } else {
-            exportBtn.style.display = 'none';
-            exportBtn.classList.remove('tournament-complete');
             submitBtn.style.display = 'none';
         }
 
