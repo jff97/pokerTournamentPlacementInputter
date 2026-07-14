@@ -909,7 +909,15 @@ class TournamentScorer {
     shareOrDownloadImage(blob) {
         const fileName = `tournament-results-${new Date().toISOString().split('T')[0]}.png`;
         
-        // Check if Web Share API is available
+        // Always download
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        // Also share if Web Share API is available
         if (navigator.share) {
             // Convert blob to File for sharing
             const file = new File([blob], fileName, { type: 'image/png' });
@@ -919,19 +927,11 @@ class TournamentScorer {
                 title: 'Tournament Results',
                 text: 'Tournament Results'
             }).catch(err => {
-                // User cancelled share, fall back to download
+                // Silently handle errors - download already happened
                 if (err.name !== 'AbortError') {
                     console.error('Share error:', err);
                 }
             });
-        } else {
-            // Fallback: traditional download for unsupported browsers
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.download = fileName;
-            link.href = url;
-            link.click();
-            URL.revokeObjectURL(url);
         }
     }
 
