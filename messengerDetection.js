@@ -20,7 +20,8 @@ function isOpenedInMessenger() {
 }
 
 function showMessengerWarning() {
-    const currentUrl = window.location.href;
+    // Get clean URL without query parameters
+    const currentUrl = window.location.origin + window.location.pathname;
     
     // Create overlay
     const overlay = document.createElement('div');
