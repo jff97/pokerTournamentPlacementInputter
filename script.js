@@ -749,13 +749,13 @@ class TournamentScorer {
         const input = document.getElementById('newPlayerConfirmInput').value.toLowerCase().trim();
         const errorDiv = document.getElementById('newPlayerModalError');
         
-        if (input === 'new player') {
+        if (input === 'new to league') {
             // Valid confirmation, add the player
             this.closeNewPlayerModal();
             this.addAsNewPlayer();
         } else {
             // Show error message
-            errorDiv.textContent = 'Please type exactly "new player" to confirm.';
+            errorDiv.textContent = 'Please type exactly "new to league" to confirm.';
             errorDiv.style.display = 'block';
             document.getElementById('newPlayerConfirmInput').value = '';
             document.getElementById('newPlayerConfirmInput').focus();
