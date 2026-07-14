@@ -36,6 +36,17 @@ class TournamentScorer {
         return name.toLowerCase().trim().replace(/\s+/g, ' ');
     }
     
+    formatNameForDisplay(name) {
+        // Normalize spacing and case, then title case each word
+        return name
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ')
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+    
     getOrdinalPlace(number) {
         const j = number % 10;
         const k = number % 100;
@@ -189,12 +200,15 @@ class TournamentScorer {
 
     async addPlayer() {
         const input = document.getElementById('playerNameInput');
-        const name = input.value.trim();
+        let name = input.value.trim();
         
         if (!name) {
             this.showMessage('Input Required', 'Please enter a player name');
             return;
         }
+        
+        // Format name: remove extra spacing, lowercase, then title case each word
+        name = this.formatNameForDisplay(name);
 
         // Run name validation
         const validationErrors = validateCheckInName(name);
@@ -651,10 +665,14 @@ class TournamentScorer {
     selectSimilarName(name) {
         const input = document.getElementById('playerNameInput');
         
+        // Format the name (normalize spacing and capitalize each word)
+        name = this.formatNameForDisplay(name);
+        
         // Check for duplicates (case and spacing insensitive)
         const normalizedName = this.normalizeName(name);
         if (this.players.find(p => this.normalizeName(p.name) === normalizedName)) {
             this.closeSimilarNamesModal();
+            this.closeNewPlayerModal();
             this.showMessage('Duplicate Player', 'Player already checked in');
             return;
         }
@@ -676,6 +694,7 @@ class TournamentScorer {
 
         input.value = '';
         this.closeSimilarNamesModal();
+        this.closeNewPlayerModal();
         this.saveToStorage();
         this.render();
     }
