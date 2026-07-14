@@ -132,7 +132,7 @@ class TournamentScorer {
         document.getElementById('addMissingPlayerBtn').addEventListener('click', () => this.openAddMissingPlayerModal());
         
         // Clear all
-        document.getElementById('clearAllBtn').addEventListener('click', () => this.clearAll());
+        document.getElementById('clearAllBtn').addEventListener('click', () => this.showClearAllModal());
         
         
         // Submit Round
@@ -989,6 +989,47 @@ class TournamentScorer {
         document.getElementById('roundCompleteSection').style.display = 'none';
         
         this.render();
+    }
+
+    showClearAllModal() {
+        // Create modal if it doesn't exist
+        let modal = document.getElementById('clearAllModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'clearAllModal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>⚠️ Clear All Data?</h3>
+                    <div class="modal-body">
+                        <p>This will permanently wipe what you have entered. This action cannot be undone without remembering what you entered.</p>
+                    </div>
+                    <div class="modal-actions">
+                        <button id="confirmClearAllBtn" class="btn btn-danger">Clear All Data</button>
+                        <button id="cancelClearAllBtn" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Attach event listeners
+            document.getElementById('confirmClearAllBtn').addEventListener('click', () => this.confirmClearAll());
+            document.getElementById('cancelClearAllBtn').addEventListener('click', () => this.closeClearAllModal());
+        }
+        
+        modal.classList.add('active');
+    }
+
+    closeClearAllModal() {
+        const modal = document.getElementById('clearAllModal');
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    }
+
+    confirmClearAll() {
+        this.clearAll();
+        this.closeClearAllModal();
     }
 
     saveToStorage() {
