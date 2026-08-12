@@ -6,7 +6,8 @@ class RoundSubmissionManager {
     // Configuration
     static CONFIG = {
         API_URL: 'https://api.johnfoxweb.com/api/automatic-points/add-round',
-        BARS_URL: 'https://jff97.github.io/PokerAnalyzerDisplayWebsite/static/cachedLeaderboards/automatic-points-bars.json'
+        BARS_URL: 'https://jff97.github.io/PokerAnalyzerDisplayWebsite/static/cachedLeaderboards/automatic-points-bars.json',
+        PASSWORD_STORAGE_KEY: 'lastSubmitPassword'
     };
 
     // DOM element IDs
@@ -104,16 +105,78 @@ class RoundSubmissionManager {
     }
 
     selectBar(barId, barName, button) {
-        // Prompt for password
-        const password = prompt(`Enter admin password to submit to ${barName}:`);
+        this.showPasswordModal(barId, barName, button);
+    }
+
+    showPasswordModal(barId, barName, button) {
+        let modal = document.getElementById('passwordModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'passwordModal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3 id="passwordModalTitle">Enter Admin Password</h3>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="passwordModalInput">Password:</label>
+                            <input type="text" id="passwordModalInput" placeholder="Enter admin password" />
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button id="passwordModalSubmitBtn" class="btn btn-primary">Submit</button>
+                        <button id="passwordModalCancelBtn" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const input = document.getElementById('passwordModalInput');
+            // Persist on every change so it's remembered even if the user cancels
+            input.addEventListener('input', () => {
+                localStorage.setItem(RoundSubmissionManager.CONFIG.PASSWORD_STORAGE_KEY, input.value);
+            });
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.confirmPasswordModal();
+            });
+
+            document.getElementById('passwordModalSubmitBtn').addEventListener('click', () => this.confirmPasswordModal());
+            document.getElementById('passwordModalCancelBtn').addEventListener('click', () => this.closePasswordModal());
+        }
+
+        this.pendingBarId = barId;
+        this.pendingBarName = barName;
+        this.pendingButton = button;
+
+        const input = document.getElementById('passwordModalInput');
+        document.getElementById('passwordModalTitle').textContent = `Enter admin password to submit to ${barName}:`;
+        input.value = localStorage.getItem(RoundSubmissionManager.CONFIG.PASSWORD_STORAGE_KEY) || '';
+
+        modal.classList.add('active');
+        input.focus();
+    }
+
+    confirmPasswordModal() {
+        const input = document.getElementById('passwordModalInput');
+        const password = input.value;
         if (!password) {
             return;
         }
 
-        button.disabled = true;
-        button.textContent = 'Submitting...';
+        const { pendingBarId, pendingBarName, pendingButton } = this;
+        this.closePasswordModal();
 
-        this.submitRoundResults(barId, barName, password, button);
+        pendingButton.disabled = true;
+        pendingButton.textContent = 'Submitting...';
+
+        this.submitRoundResults(pendingBarId, pendingBarName, password, pendingButton);
+    }
+
+    closePasswordModal() {
+        const modal = document.getElementById('passwordModal');
+        if (modal) {
+            modal.classList.remove('active');
+        }
     }
 
     async submitRoundResults(barId, barName, password, button) {
