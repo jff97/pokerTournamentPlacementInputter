@@ -950,73 +950,31 @@ class TournamentScorer {
 
     shareOrDownloadImage(blob) {
         const fileName = `tournament-results-${new Date().toISOString().split('T')[0]}.png`;
-        const file = new File([blob], fileName, { type: 'image/png' });
-        const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) ||
-            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
-
-        this.trySystemShare(file);
-
-        if (isIOS) {
-            // Safari doesn't reliably save images via <a download>, so also show a
-            // full-screen backup the user can press-and-hold to save if they miss the share sheet
-            this.showImageSaveOverlay(blob);
-        } else {
-            this.downloadImage(blob, fileName);
-        }
-    }
-
-    trySystemShare(file) {
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        
+        // Always download
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        // Also share if Web Share API is available
+        if (navigator.share) {
+            // Convert blob to File for sharing
+            const file = new File([blob], fileName, { type: 'image/png' });
+            
             navigator.share({
                 files: [file],
                 title: 'Tournament Results',
                 text: 'Tournament Results'
             }).catch(err => {
+                // Silently handle errors - download already happened
                 if (err.name !== 'AbortError') {
                     console.error('Share error:', err);
                 }
             });
         }
-    }
-
-    showImageSaveOverlay(blob) {
-        let overlay = document.getElementById('imageSaveOverlay');
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'imageSaveOverlay';
-            overlay.className = 'modal';
-            overlay.innerHTML = `
-                <div class="modal-content" style="max-width: 95%; text-align: center;">
-                    <h3>Your Results</h3>
-                    <div class="modal-body">
-                        <img id="imageSaveOverlayImg" style="max-width: 100%; border-radius: 8px;" alt="Tournament Results" />
-                    </div>
-                    <div class="modal-actions">
-                        <button id="imageSaveOverlayCloseBtn" class="btn btn-secondary">Close</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(overlay);
-
-            document.getElementById('imageSaveOverlayCloseBtn').addEventListener('click', () => {
-                overlay.classList.remove('active');
-            });
-        }
-
-        document.getElementById('imageSaveOverlayImg').src = URL.createObjectURL(blob);
-        overlay.classList.add('active');
-    }
-
-    downloadImage(blob, fileName) {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = fileName;
-        link.href = url;
-        // Must be attached to the DOM for the click to reliably trigger a download in all browsers
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
     }
 
     clearAll() {
