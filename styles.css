@@ -515,6 +515,20 @@ header h1 {
     font-size: 16px !important;
 }
 
+.bar-button-today {
+    background: #28a745 !important;
+}
+
+.bar-button-today:hover {
+    background: #218838 !important;
+}
+
+.bar-grid-divider {
+    grid-column: 1 / -1;
+    border-top: 2px dashed #ccc;
+    margin: 20px 0;
+}
+
 /* Position Selection Buttons */
 .add-player-step {
     display: block;

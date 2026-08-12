@@ -10,6 +10,8 @@ class RoundSubmissionManager {
         PASSWORD_STORAGE_KEY: 'lastSubmitPassword'
     };
 
+    static DAY_ORDER = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
     // DOM element IDs
     static DOM = {
         TOURNAMENT_SECTION: 'tournamentSection',
@@ -89,12 +91,26 @@ class RoundSubmissionManager {
             return;
         }
 
+        const sortedBars = this.sortBarsByDay(bars);
+        const today = RoundSubmissionManager.DAY_ORDER[new Date().getDay()];
+
         const barGrid = document.createElement('div');
         barGrid.className = 'bar-grid';
 
-        bars.forEach(bar => {
+        let dividerInserted = false;
+        sortedBars.forEach(bar => {
+            const isToday = bar.day === today;
+
+            // Separate today's bars from the rest once we reach the first non-today bar
+            if (!isToday && !dividerInserted && barGrid.children.length > 0) {
+                const divider = document.createElement('div');
+                divider.className = 'bar-grid-divider';
+                barGrid.appendChild(divider);
+                dividerInserted = true;
+            }
+
             const barButton = document.createElement('button');
-            barButton.className = 'btn btn-primary bar-button';
+            barButton.className = 'btn btn-primary bar-button' + (isToday ? ' bar-button-today' : '');
             barButton.textContent = bar.bar_title || 'Unknown Bar';
             barButton.addEventListener('click', () => this.selectBar(bar.bar_id, bar.bar_title || 'Unknown Bar', barButton));
 
@@ -102,6 +118,18 @@ class RoundSubmissionManager {
         });
 
         container.appendChild(barGrid);
+    }
+
+    sortBarsByDay(bars) {
+        const todayIndex = new Date().getDay();
+
+        const daysUntil = (bar) => {
+            const dayIndex = RoundSubmissionManager.DAY_ORDER.indexOf(bar.day);
+            if (dayIndex === -1) return RoundSubmissionManager.DAY_ORDER.length; // unrecognized day goes last
+            return (dayIndex - todayIndex + 7) % 7;
+        };
+
+        return [...bars].sort((a, b) => daysUntil(a) - daysUntil(b));
     }
 
     selectBar(barId, barName, button) {
