@@ -6,8 +6,12 @@ class RoundSubmissionManager {
     // Configuration
     static CONFIG = {
         API_URL: 'https://api.johnfoxweb.com/api/automatic-points/add-round',
+        API_ROOT_URL: 'https://api.johnfoxweb.com/',
         BARS_URL: 'https://jff97.github.io/PokerAnalyzerDisplayWebsite/static/cachedLeaderboards/automatic-points-bars.json',
-        PASSWORD_STORAGE_KEY: 'lastSubmitPassword'
+        PASSWORD_STORAGE_KEY: 'lastSubmitPassword',
+        BARS_TIMEOUT_MS: 15000,
+        SUBMISSION_TIMEOUT_MS: 45000,
+        WARMUP_TIMEOUT_MS: 15000
     };
 
     static DAY_ORDER = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -67,7 +71,11 @@ class RoundSubmissionManager {
     }
 
     async fetchBars() {
-        const response = await fetch(RoundSubmissionManager.CONFIG.BARS_URL);
+        const response = await this.fetchWithTimeout(
+            RoundSubmissionManager.CONFIG.BARS_URL,
+            {},
+            RoundSubmissionManager.CONFIG.BARS_TIMEOUT_MS
+        );
         
         if (!response.ok) {
             throw new Error(`Failed to fetch bars: ${response.status}`);
@@ -217,18 +225,36 @@ class RoundSubmissionManager {
                 return;
             }
 
-            const response = await fetch(RoundSubmissionManager.CONFIG.API_URL, {
+            button.textContent = 'Waking up server...';
+            await this.warmupServer(true);
+
+            button.textContent = 'Submitting...';
+            const response = await this.fetchWithTimeout(RoundSubmissionManager.CONFIG.API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password, bar_id: barId, player_scores: playerScores })
-            });
+            }, RoundSubmissionManager.CONFIG.SUBMISSION_TIMEOUT_MS);
 
-            const data = await this.parseResponse(response);
-            this.handleSubmissionResponse(response, data, barName, button);
+            const responseResult = await this.parseResponse(response);
+            this.handleSubmissionResponse(response, responseResult, barName, button);
         } catch (error) {
             console.error('Submission error:', error);
-            showMessageModal('Submission Error', `❌ Error: ${error.message}`);
+            showMessageModal('Submission Error', this.getSubmissionErrorMessage(error));
             this.resetButton(button, barName);
+        }
+    }
+
+    async fetchWithTimeout(url, options = {}, timeoutMs = RoundSubmissionManager.CONFIG.SUBMISSION_TIMEOUT_MS) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            return await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 
@@ -244,20 +270,35 @@ class RoundSubmissionManager {
 
     async parseResponse(response) {
         try {
-            return await response.json();
-        } catch (e) {
-            return { error: 'Invalid server response' };
+            return {
+                data: await response.json(),
+                parseError: null
+            };
+        } catch (error) {
+            return {
+                data: null,
+                parseError: error
+            };
         }
     }
 
-    handleSubmissionResponse(response, data, barName, button) {
+    handleSubmissionResponse(response, responseResult, barName, button) {
         if (!response.ok) {
-            this.handleSubmissionError(response.status, data, button, barName);
+            this.handleSubmissionError(response.status, responseResult.data || {}, button, barName);
+            return;
+        }
+
+        if (responseResult.parseError || !responseResult.data || typeof responseResult.data.round_id === 'undefined') {
+            showMessageModal(
+                'Submission Status Unclear',
+                '⚠️ The server responded, but not in the expected format. The round may still have been submitted, so please verify before trying again.'
+            );
+            this.resetButton(button, barName);
             return;
         }
 
         this.stopWarmupInterval();
-        showMessageModal('Success', `✅ Round successfully submitted to ${barName}!\nRound ID: ${data.round_id}`);
+        showMessageModal('Success', `✅ Round successfully submitted to ${barName}!\nRound ID: ${responseResult.data.round_id}`);
         this.showScreen(RoundSubmissionManager.DOM.CHECK_IN_SECTION);
         this.hasAutoShown = false;
     }
@@ -266,9 +307,22 @@ class RoundSubmissionManager {
         const messages = {
             401: '❌ Invalid password',
             400: `❌ Bad request: ${data.error || 'Unknown error'}`,
+            503: '❌ The submission server is temporarily unavailable. It may still be waking up, so wait a moment before trying again.',
         };
         showMessageModal('Submission Error', messages[status] || `❌ Server error: ${status}`);
         this.resetButton(button, barName);
+    }
+
+    getSubmissionErrorMessage(error) {
+        if (error.name === 'AbortError') {
+            return '❌ The submission server took too long to respond. The Azure free-tier server may still be waking up, and the round may still have been received. Please wait a moment and verify whether the round was created before retrying.';
+        }
+
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            return '❌ Your device appears to be offline, so the round could not be submitted.';
+        }
+
+        return '❌ Could not reach the submission server. This usually means a network-level problem such as the Azure server being asleep, DNS not resolving, CORS blocking the response, or a browser/network tool interrupting the request. If you already clicked submit, the round may still have been processed, so verify before trying again.';
     }
 
     resetButton(button, barName) {
@@ -283,10 +337,18 @@ class RoundSubmissionManager {
     }
 
     // Simple hook to warm up Azure server when top 3 finalists are eliminated
-    async warmupServer() {
+    async warmupServer(waitForCompletion = false) {
         try {
             this.warmupCount++;
-            fetch('https://api.johnfoxweb.com/', { method: 'GET' });
+            const warmupRequest = this.fetchWithTimeout(RoundSubmissionManager.CONFIG.API_ROOT_URL, {
+                method: 'GET',
+                mode: 'no-cors',
+                cache: 'no-store'
+            }, RoundSubmissionManager.CONFIG.WARMUP_TIMEOUT_MS);
+
+            if (waitForCompletion) {
+                await warmupRequest;
+            }
             
             // Stop after reaching max warmups
             if (this.warmupCount >= this.maxWarmups) {
