@@ -6,8 +6,14 @@ class RoundSubmissionManager {
     // Configuration
     static CONFIG = {
         API_URL: 'https://api.johnfoxweb.com/api/automatic-points/add-round',
+        API_ROOT_URL: 'https://api.johnfoxweb.com/',
         BARS_URL: 'https://jff97.github.io/PokerAnalyzerDisplayWebsite/static/cachedLeaderboards/automatic-points-bars.json',
-        PASSWORD_STORAGE_KEY: 'lastSubmitPassword'
+        PASSWORD_STORAGE_KEY: 'lastSubmitPassword',
+        BARS_TIMEOUT_MS: 15000,
+        SUBMISSION_TIMEOUT_MS: 45000,
+        WARMUP_TIMEOUT_MS: 15000,
+        WARMUP_INTERVAL_MS: 240000,
+        WARMUP_TRIGGER_ELIMINATIONS: 4
     };
 
     static DAY_ORDER = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -24,8 +30,7 @@ class RoundSubmissionManager {
     constructor() {
         this.hasAutoShown = false;
         this.warmupIntervalId = null;
-        this.warmupCount = 0;
-        this.maxWarmups = 15; // Limit to 15 warmups (30 minutes at 2-min intervals)
+        this.warmupRequestInFlight = false;
     }
 
     async showRoundCompleteScreen(isAutomatic = false) {
@@ -67,7 +72,11 @@ class RoundSubmissionManager {
     }
 
     async fetchBars() {
-        const response = await fetch(RoundSubmissionManager.CONFIG.BARS_URL);
+        const response = await this.fetchWithTimeout(
+            RoundSubmissionManager.CONFIG.BARS_URL,
+            {},
+            RoundSubmissionManager.CONFIG.BARS_TIMEOUT_MS
+        );
         
         if (!response.ok) {
             throw new Error(`Failed to fetch bars: ${response.status}`);
@@ -217,18 +226,32 @@ class RoundSubmissionManager {
                 return;
             }
 
-            const response = await fetch(RoundSubmissionManager.CONFIG.API_URL, {
+            const response = await this.fetchWithTimeout(RoundSubmissionManager.CONFIG.API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password, bar_id: barId, player_scores: playerScores })
-            });
+            }, RoundSubmissionManager.CONFIG.SUBMISSION_TIMEOUT_MS);
 
-            const data = await this.parseResponse(response);
-            this.handleSubmissionResponse(response, data, barName, button);
+            const responseResult = await this.parseResponse(response);
+            this.handleSubmissionResponse(response, responseResult, barName, button);
         } catch (error) {
             console.error('Submission error:', error);
-            showMessageModal('Submission Error', `❌ Error: ${error.message}`);
+            showMessageModal('Submission Error', this.getSubmissionErrorMessage(error));
             this.resetButton(button, barName);
+        }
+    }
+
+    async fetchWithTimeout(url, options = {}, timeoutMs = RoundSubmissionManager.CONFIG.SUBMISSION_TIMEOUT_MS) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            return await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 
@@ -244,20 +267,35 @@ class RoundSubmissionManager {
 
     async parseResponse(response) {
         try {
-            return await response.json();
-        } catch (e) {
-            return { error: 'Invalid server response' };
+            return {
+                data: await response.json(),
+                parseError: null
+            };
+        } catch (error) {
+            return {
+                data: null,
+                parseError: error
+            };
         }
     }
 
-    handleSubmissionResponse(response, data, barName, button) {
+    handleSubmissionResponse(response, responseResult, barName, button) {
         if (!response.ok) {
-            this.handleSubmissionError(response.status, data, button, barName);
+            this.handleSubmissionError(response.status, responseResult.data || {}, button, barName);
+            return;
+        }
+
+        if (responseResult.parseError || !responseResult.data || typeof responseResult.data.round_id === 'undefined') {
+            showMessageModal(
+                'Submission Status Unclear',
+                '⚠️ The server responded, but not in the expected format. The round may still have been submitted, so please verify before trying again.'
+            );
+            this.resetButton(button, barName);
             return;
         }
 
         this.stopWarmupInterval();
-        showMessageModal('Success', `✅ Round successfully submitted to ${barName}!\nRound ID: ${data.round_id}`);
+        showMessageModal('Success', `✅ Round successfully submitted to ${barName}!\nRound ID: ${responseResult.data.round_id}`);
         this.showScreen(RoundSubmissionManager.DOM.CHECK_IN_SECTION);
         this.hasAutoShown = false;
     }
@@ -266,9 +304,22 @@ class RoundSubmissionManager {
         const messages = {
             401: '❌ Invalid password',
             400: `❌ Bad request: ${data.error || 'Unknown error'}`,
+            503: '❌ The submission server is temporarily unavailable. It may still be waking up, so wait a moment before trying again.',
         };
         showMessageModal('Submission Error', messages[status] || `❌ Server error: ${status}`);
         this.resetButton(button, barName);
+    }
+
+    getSubmissionErrorMessage(error) {
+        if (error.name === 'AbortError') {
+            return '❌ The submission request timed out while waiting for the server response. The round may still have been received, so please verify before retrying.';
+        }
+
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            return '❌ Your device appears to be offline, so the round could not be submitted.';
+        }
+
+        return '❌ Could not reach the submission server. This usually means a network-level problem such as the Azure server being asleep, DNS not resolving, CORS blocking the response, or a browser/network tool interrupting the request. If you already clicked submit, the round may still have been processed, so verify before trying again.';
     }
 
     resetButton(button, barName) {
@@ -277,32 +328,51 @@ class RoundSubmissionManager {
     }
 
     backFromRoundComplete() {
-        this.stopWarmupInterval();
         this.showScreen(RoundSubmissionManager.DOM.TOURNAMENT_SECTION);
         this.hasAutoShown = false;
     }
 
-    // Simple hook to warm up Azure server when top 3 finalists are eliminated
+    updateWarmupState(eliminatedCount, totalPlayers) {
+        const shouldWarm =
+            totalPlayers > 0 &&
+            (eliminatedCount >= RoundSubmissionManager.CONFIG.WARMUP_TRIGGER_ELIMINATIONS ||
+                eliminatedCount === totalPlayers);
+
+        if (shouldWarm) {
+            this.startWarmupInterval();
+            return;
+        }
+
+        this.stopWarmupInterval();
+    }
+
     async warmupServer() {
+        if (this.warmupRequestInFlight) {
+            return;
+        }
+
+        this.warmupRequestInFlight = true;
+
         try {
-            this.warmupCount++;
-            fetch('https://api.johnfoxweb.com/', { method: 'GET' });
-            
-            // Stop after reaching max warmups
-            if (this.warmupCount >= this.maxWarmups) {
-                this.stopWarmupInterval();
-            }
+            await this.fetchWithTimeout(RoundSubmissionManager.CONFIG.API_ROOT_URL, {
+                method: 'GET',
+                mode: 'no-cors',
+                cache: 'no-store'
+            }, RoundSubmissionManager.CONFIG.WARMUP_TIMEOUT_MS);
         } catch (e) {
             // Silently ignore - this is just a warmup call
+        } finally {
+            this.warmupRequestInFlight = false;
         }
     }
 
     startWarmupInterval() {
-        // Start interval to warm up server every 2 minutes (all browsers support setInterval)
         if (this.warmupIntervalId === null) {
-            this.warmupCount = 0;
             this.warmupServer(); // Immediate call
-            this.warmupIntervalId = setInterval(() => this.warmupServer(), 120000); // 2 minutes = 120000ms
+            this.warmupIntervalId = setInterval(
+                () => this.warmupServer(),
+                RoundSubmissionManager.CONFIG.WARMUP_INTERVAL_MS
+            );
         }
     }
 
