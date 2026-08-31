@@ -11,7 +11,9 @@ class RoundSubmissionManager {
         PASSWORD_STORAGE_KEY: 'lastSubmitPassword',
         BARS_TIMEOUT_MS: 15000,
         SUBMISSION_TIMEOUT_MS: 45000,
-        WARMUP_TIMEOUT_MS: 15000
+        WARMUP_TIMEOUT_MS: 15000,
+        WARMUP_INTERVAL_MS: 240000,
+        WARMUP_TRIGGER_ELIMINATIONS: 4
     };
 
     static DAY_ORDER = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -28,8 +30,7 @@ class RoundSubmissionManager {
     constructor() {
         this.hasAutoShown = false;
         this.warmupIntervalId = null;
-        this.warmupCount = 0;
-        this.maxWarmups = 15; // Limit to 15 warmups (30 minutes at 2-min intervals)
+        this.warmupRequestInFlight = false;
     }
 
     async showRoundCompleteScreen(isAutomatic = false) {
@@ -225,10 +226,6 @@ class RoundSubmissionManager {
                 return;
             }
 
-            button.textContent = 'Waking up server...';
-            await this.warmupServer(true);
-
-            button.textContent = 'Submitting...';
             const response = await this.fetchWithTimeout(RoundSubmissionManager.CONFIG.API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -315,7 +312,7 @@ class RoundSubmissionManager {
 
     getSubmissionErrorMessage(error) {
         if (error.name === 'AbortError') {
-            return '❌ The submission server took too long to respond. The Azure free-tier server may still be waking up, and the round may still have been received. Please wait a moment and verify whether the round was created before retrying.';
+            return '❌ The submission request timed out while waiting for the server response. The round may still have been received, so please verify before retrying.';
         }
 
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -331,40 +328,51 @@ class RoundSubmissionManager {
     }
 
     backFromRoundComplete() {
-        this.stopWarmupInterval();
         this.showScreen(RoundSubmissionManager.DOM.TOURNAMENT_SECTION);
         this.hasAutoShown = false;
     }
 
-    // Simple hook to warm up Azure server when top 3 finalists are eliminated
-    async warmupServer(waitForCompletion = false) {
+    updateWarmupState(eliminatedCount, totalPlayers) {
+        const shouldWarm =
+            totalPlayers > 0 &&
+            (eliminatedCount >= RoundSubmissionManager.CONFIG.WARMUP_TRIGGER_ELIMINATIONS ||
+                eliminatedCount === totalPlayers);
+
+        if (shouldWarm) {
+            this.startWarmupInterval();
+            return;
+        }
+
+        this.stopWarmupInterval();
+    }
+
+    async warmupServer() {
+        if (this.warmupRequestInFlight) {
+            return;
+        }
+
+        this.warmupRequestInFlight = true;
+
         try {
-            this.warmupCount++;
-            const warmupRequest = this.fetchWithTimeout(RoundSubmissionManager.CONFIG.API_ROOT_URL, {
+            await this.fetchWithTimeout(RoundSubmissionManager.CONFIG.API_ROOT_URL, {
                 method: 'GET',
                 mode: 'no-cors',
                 cache: 'no-store'
             }, RoundSubmissionManager.CONFIG.WARMUP_TIMEOUT_MS);
-
-            if (waitForCompletion) {
-                await warmupRequest;
-            }
-            
-            // Stop after reaching max warmups
-            if (this.warmupCount >= this.maxWarmups) {
-                this.stopWarmupInterval();
-            }
         } catch (e) {
             // Silently ignore - this is just a warmup call
+        } finally {
+            this.warmupRequestInFlight = false;
         }
     }
 
     startWarmupInterval() {
-        // Start interval to warm up server every 2 minutes (all browsers support setInterval)
         if (this.warmupIntervalId === null) {
-            this.warmupCount = 0;
             this.warmupServer(); // Immediate call
-            this.warmupIntervalId = setInterval(() => this.warmupServer(), 120000); // 2 minutes = 120000ms
+            this.warmupIntervalId = setInterval(
+                () => this.warmupServer(),
+                RoundSubmissionManager.CONFIG.WARMUP_INTERVAL_MS
+            );
         }
     }
 

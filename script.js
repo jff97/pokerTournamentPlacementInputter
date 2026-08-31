@@ -582,11 +582,6 @@ class TournamentScorer {
         player.eliminationPoints = position;
         this.recalculateBonusPoints(player);
 
-        // Warm up server when top 3 finalists are eliminated
-        if (position >= 1 && position <= 3) {
-            roundSubmissionManager.warmupServer();
-        }
-
         this.updateNextEliminationOrder();
         this.saveToStorage();
         this.closeEliminateModal();
@@ -1064,6 +1059,7 @@ class TournamentScorer {
     // === Rendering ===
 
     render() {
+        roundSubmissionManager.updateWarmupState(this.getEliminatedPlayers().length, this.totalPlayers);
         this.renderCheckIn();
         this.renderTournament();
     }
