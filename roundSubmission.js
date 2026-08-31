@@ -302,11 +302,20 @@ class RoundSubmissionManager {
 
     handleSubmissionError(status, data, button, barName) {
         const messages = {
-            401: '❌ Invalid password',
             400: `❌ Bad request: ${data.error || 'Unknown error'}`,
+            401: '❌ Invalid password',
+            403: '❌ You are not authorized to submit to this bar',
+            404: '❌ Submission endpoint not found. The bar or API route may be misconfigured.',
+            408: '❌ The server timed out waiting for the request. Please try again.',
+            409: `❌ Conflict: ${data.error || 'This round may have already been submitted'}`,
+            429: '❌ Too many requests. Please wait a moment before trying again.',
+            500: `❌ Internal server error: ${data.error || 'The backend encountered an unexpected problem'}`,
+            502: '❌ Bad gateway. The backend server may be restarting, please try again shortly.',
             503: '❌ The submission server is temporarily unavailable. It may still be waking up, so wait a moment before trying again.',
+            504: '❌ Gateway timeout. The server took too long to respond, please try again.',
         };
-        showMessageModal('Submission Error', messages[status] || `❌ Server error: ${status}`);
+        // Fallback surfaces whatever message the backend itself provided
+        showMessageModal('Submission Error', messages[status] || `❌ Server error ${status}: ${data.error || 'No additional details provided'}`);
         this.resetButton(button, barName);
     }
 
